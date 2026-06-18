@@ -13,6 +13,7 @@
     "typecheck": "tsgo"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.0-beta.57",
     "@vercel/connect": "0.2.2",
     "ai": "7.0.0-beta.178",
     "eve": "^0.11.4",
@@ -20,7 +21,8 @@
   },
   "devDependencies": {
     "@types/node": "24.x",
-    "@typescript/native-preview": "7.0.0-dev.20260523.1"
+    "@typescript/native-preview": "7.0.0-dev.20260523.1",
+    "microsandbox": "^0.5.7"
   },
   "overrides": {
     "ai": "7.0.0-beta.178"
