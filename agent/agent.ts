@@ -10,9 +10,12 @@ const ollama = createOpenAICompatible({
   apiKey: process.env.OLLAMA_API_KEY,
 });
 
+// Модель и размер окна настраиваются через .env (см. scripts/setup.mjs).
+const MODEL = process.env.OLLAMA_MODEL ?? "deepseek-v4-pro";
+const CONTEXT_WINDOW = Number(process.env.OLLAMA_CONTEXT_WINDOW ?? 131072);
+
 export default defineAgent({
-  // DeepSeek-V4-Pro: MoE, tool calling подтверждён, reasoning отдельным полем.
-  model: ollama("deepseek-v4-pro:cloud"),
+  model: ollama(MODEL),
   // Кастомный провайдер не отдаёт метаданные окна через AI Gateway — задаём вручную.
-  modelContextWindowTokens: 131072,
+  modelContextWindowTokens: CONTEXT_WINDOW,
 });
