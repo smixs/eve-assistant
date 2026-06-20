@@ -112,7 +112,9 @@ export default defineTool({
       for (let i = 0; i < lines.length; i++) {
         re.lastIndex = 0;
         if (re.test(lines[i])) {
-          matches.push({ file, line: i + 1, text: lines[i] });
+          // Усекаем длинные строки (минифайлы), чтобы не раздуть контекст.
+          const text = lines[i].length > 300 ? lines[i].slice(0, 300) + "…" : lines[i];
+          matches.push({ file, line: i + 1, text });
           if (matches.length >= MAX_MATCHES) {
             truncated = true;
             break;
