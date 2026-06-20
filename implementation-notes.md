@@ -159,3 +159,28 @@
 
 ### Gotchas
 - Живой `vault/` отсутствует в свежем клоне код-репо — перед работой памяти нужен `npm run init-vault`.
+
+## 2026-06-20 (v3 — Iva: провайдер, overflow, команды, веб, браузер, MCP)
+
+### Decisions
+- **Ребренд «Ева» → «Iva»** (имя = «ива», дерево; память древовидная). Инфра-имена (`eve-assistant`,
+  репо, npm name) НЕ трогали — рискованно и не нужно.
+- **Провайдер модели** через `MODEL_PROVIDER` (ollama|opencode), оба OpenAI-совместимы, выбор в setup.
+  OpenCode: `https://opencode.ai/zen/go/v1`, модели хардкодом (нет /models). Точные id моделей OpenCode —
+  проверить вживую (взял правдоподобные `opencode-go/*`).
+- **Защита от overflow** (критично): `compaction.thresholdPercent 0.7`; окно задаём verbatim (кастомный
+  провайдер не отдаёт метаданные); лимиты вывода тулзов (read_file/grep/web_search ~24k/300 симв); `turn.failed`
+  → подсказка /new. Один ход с гигантским выводом компактация не спасает — поэтому каппинг на уровне тулзов.
+- **web_search** — свой тул на DuckDuckGo HTML (без ключа, RU-IP). Встроенный eve web_search провайдерный
+  (с Ollama — заглушка-исключение). web_fetch — встроенный, работает.
+- **Telegram-команды**: `/restart`/`/help`/`/new` — в поллер-мосте out-of-band (работают, даже если агент
+  завис; только для allowlist). `/task`/`/tasks`/`/digest` — перехват в onMessage → context модели.
+  Спайк по каналу: для лички continuation-токен детерминирован из chatId → чистого «нового чата» канал не даёт,
+  поэтому /new = restart процесса (durable-память vault это не теряет). Проверить на VPS, сбрасывает ли restart
+  диалог (зависит от durability сессий self-host eve).
+- **Поллинг-фикс**: первый старт (нет offset-файла) — `deleteWebhook(drop_pending=true)`, чтобы бэклог не
+  реплеился пачкой (был источник HookConflict — параллельные сессии на один чат).
+- **Браузер** — `vercel-labs/agent-browser` (Rust CLI), ставит install.sh (`npm i -g` + `install --with-deps`,
+  Chromium+sudo-либы). Iva зовёт через host-bash; скилл-стаб указывает на `agent-browser skills get core`.
+  Бинарь в npm-global → путь добавлен в PATH сервиса; `AGENT_BROWSER_MAX_OUTPUT=24000` против раздувания окна.
+- **MCP** — заскаффолжен `agent/connections/` (README + example.ts.txt, не активен пока).

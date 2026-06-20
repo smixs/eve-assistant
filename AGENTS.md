@@ -1,4 +1,4 @@
-# eve Agent App (Ева, v2)
+# Iva — личный агент на eve
 
 This project uses the eve framework. Before writing code, always read the relevant guide in `node_modules/eve/docs/`.
 
@@ -9,13 +9,19 @@ This project uses the eve framework. Before writing code, always read the releva
   HTTPS на bare-VPS нет. Мост `scripts/telegram-poll.mjs` (сервис `eve-telegram-poll`) сам забирает апдейты
   (`getUpdates`) и POST-ит их в локальный роут с секретным заголовком. Прокси/домен не нужны; код канала не меняется.
 - **Deepgram.** Голос/видео/аудио из Telegram транскрибируются (nova-3, `DEEPGRAM_LANGUAGE=multi`) и пишутся
-  в дневной транскрипт vault до попадания к Еве.
+  в дневной транскрипт vault до попадания к Iva.
+- **Модель.** Провайдер выбирается `MODEL_PROVIDER` (ollama|opencode), оба OpenAI-совместимы.
+  Окно контекста задаётся вручную (`*_CONTEXT_WINDOW`) ≤ реального; компактация — `thresholdPercent 0.7`.
+- **Веб/браузер.** `web_search` (DuckDuckGo, свой тул) + встроенный `web_fetch`; интерактив — CLI
+  `agent-browser` (ставится install.sh, скилл `agent/skills/agent-browser/`).
+- **Команды Telegram.** Управляющие (`/restart`/`/help`/`/new`) — в поллер-мосте out-of-band;
+  `/task`/`/tasks`/`/digest` — перехват в `onMessage`. Новые tool/hook — самодостаточны (см. ниже).
 - **Vault.** Скелет (правила, autograph, dbrain-processor, schema) живёт в код-репо как `vault-template/`.
   ЖИВОЙ vault (`ASSISTANT_VAULT_DIR`, дефолт `./vault`) — ОТДЕЛЬНЫЙ приватный git-репо: личные транскрипты/блобы
   в код-репо не попадают (`/vault/` в `.gitignore`). Создаётся из шаблона: `npm run init-vault` (install.sh зовёт сам);
   затем `gh auth login` + приватный remote. doctor.ts коммитит/пушит живой vault.
 - **Память — systemd-таймеры** (`deploy/eve-memory-*.{service,timer}`): daily/weekly/monthly/yearly + doctor,
-  драйвят Еву через `eve/client`. eve-расписания (`defineSchedule`) на self-host НЕ срабатывают (только Vercel Cron).
+  драйвят Iva через `eve/client`. eve-расписания (`defineSchedule`) на self-host НЕ срабатывают (только Vercel Cron).
 - **Время** — `ASSISTANT_TIMEZONE` (→ `TZ`) + динамическая инструкция `now`.
 
 ## Гочи eve (0.11.4)

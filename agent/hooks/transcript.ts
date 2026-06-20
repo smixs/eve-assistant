@@ -2,7 +2,7 @@ import { defineHook } from "eve/hooks";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-// Двусторонний транскрипт: финальный ответ Евы дозаписывается в ТОТ ЖЕ дневной файл
+// Двусторонний транскрипт: финальный ответ Iva дозаписывается в ТОТ ЖЕ дневной файл
 // vault, что и реплики юзера (agent/channels/telegram.ts).
 //
 // САМОДОСТАТОЧНО: только eve/hooks + node-builtins. Хелпер appendDaily намеренно
@@ -33,7 +33,7 @@ export default defineHook({
   events: {
     // message.completed несёт видимый текст одного завершённого шага ассистента.
     // finishReason "tool-calls" — промежуточный текст перед вызовом тулзы; пропускаем,
-    // пишем только финальные реплики Евы.
+    // пишем только финальные реплики Iva.
     "message.completed": (event) => {
       if (event.data.finishReason === "tool-calls") return;
       const text = (event.data.message ?? "").trim();

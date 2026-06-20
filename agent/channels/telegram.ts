@@ -120,7 +120,7 @@ function appendDaily(type: string, content: string): void {
 // eve парсит фото/документы в message.attachments (kind: photo|document) и по
 // uploadPolicy сам отдаёт модели pdf/изображения нативно. Но БЛОБ на диск не пишет
 // и ССЫЛКУ в daily не ставит — делаем это сами: сохраняем в vault/attachments/<date>/,
-// пишем Obsidian-embed в daily, путь отдаём Еве. docx/прочее Ева читает через host-bash.
+// пишем Obsidian-embed в daily, путь отдаём Iva. docx/прочее Iva читает через host-bash.
 
 // getFile → скачивание байтов. Возвращает байты, либо признак >20MB, либо null.
 async function fetchTelegramFile(
@@ -335,7 +335,7 @@ export default telegramChannel({
           return null;
         }
 
-        // Сырой транскрипт юзера → daily; расшифровка долетает до Евы через context[].
+        // Сырой транскрипт юзера → daily; расшифровка долетает до Iva через context[].
         appendDaily(tag, transcript);
         return { auth: buildAuth(message), context: [`${tag} ${transcript}`] };
       } catch (err) {
@@ -353,7 +353,7 @@ export default telegramChannel({
     // 3. Штатное гейтирование диспатча (текст/фото/документы; в группе — только обращённое к боту).
     if (!shouldDispatch(message, ctx.telegram.botUsername)) return null;
 
-    // 4. Файловые вложения → блоб в vault/attachments + ссылка в daily + путь Еве.
+    // 4. Файловые вложения → блоб в vault/attachments + ссылка в daily + путь Iva.
     if (message.attachments.length > 0) {
       await ctx.telegram.startTyping();
       const stamp = localStamp();
