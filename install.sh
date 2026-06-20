@@ -235,11 +235,16 @@ ok "Зависимости установлены"
 # Бинарь ставится в npm-global; путь нужен и здесь, и в PATH сервиса (ниже).
 NPM_GLOBAL_BIN="$(npm prefix -g 2>/dev/null)/bin"
 export PATH="$NPM_GLOBAL_BIN:$PATH"
-step "Ставлю браузер agent-browser…"
-if npm i -g agent-browser >/dev/null 2>&1; then
-  # Chrome for Testing + системные Linux-либы для Chromium (sudo уже закеширован).
-  agent-browser install --with-deps >/dev/null 2>&1 \
-    || warn "agent-browser install --with-deps не прошёл — доставишь позже (agent-browser install --with-deps)"
+step "Ставлю браузер agent-browser (для веб-задач)"
+echo "  ${c_yellow}Дальше скачается Chromium и системные библиотеки — это дольше всего (1–3 мин).${c_reset}"
+echo "  ${c_yellow}Поток вывода ниже = работа идёт под капотом, НЕ прерывай. Может снова спросить пароль sudo.${c_reset}"
+# Обновляем sudo-кеш заранее (видимый запрос здесь, а не скрытый посреди установки).
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then sudo -v 2>/dev/null || true; fi
+# Вывод НЕ глушим: пользователь должен видеть прогресс (загрузка/apt), иначе кажется, что зависло.
+if npm i -g agent-browser; then
+  step "Скачиваю Chromium + системные библиотеки…"
+  agent-browser install --with-deps \
+    || warn "agent-browser install --with-deps не прошёл — доставишь позже: agent-browser install --with-deps"
   if agent-browser doctor >/dev/null 2>&1; then
     ok "agent-browser готов"
   else
