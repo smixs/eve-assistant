@@ -118,11 +118,29 @@ async function fetchTelegramUserIds(token) {
 }
 
 async function main() {
-  console.log(`\n${C.b}${C.g}  Настройка Евы — вводим секреты по шагам${C.x}`);
-  console.log("  Займёт пару минут. Для каждого ключа подскажу, где его взять и проверю на месте.");
-  console.log(`  ${C.y}Скрипт не завершится, пока не введёшь все обязательные секреты.${C.x}`);
   const existing = await loadExistingEnv();
   const out = { ...existing };
+
+  // Если всё уже настроено — не гоняем по шагам заново. Спрашиваем один раз.
+  const REQUIRED = ["OLLAMA_API_KEY", "OLLAMA_MODEL", "DEEPGRAM_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USER_IDS"];
+  const isComplete = REQUIRED.every((k) => (existing[k] || "").trim());
+  if (isComplete) {
+    console.log(`\n${C.b}${C.g}  Ева уже настроена:${C.x}`);
+    console.log(`  • Модель:   ${existing.OLLAMA_MODEL}`);
+    console.log(`  • Бот:      @${existing.TELEGRAM_BOT_USERNAME || "?"}`);
+    console.log(`  • Доступ:   ${existing.TELEGRAM_ALLOWED_USER_IDS}`);
+    console.log(`  • Deepgram: ${existing.DEEPGRAM_LANGUAGE || "multi"}   ·   TZ: ${existing.ASSISTANT_TIMEZONE || "?"}`);
+    if (!(await askYesNo("\n  Перенастроить заново?", false))) {
+      console.log(`${C.g}  Оставляю текущие настройки как есть — ничего вводить не нужно.${C.x}`);
+      rl.close();
+      return;
+    }
+    console.log(`\n  Идём по шагам. ${C.y}Enter на каждом шаге оставит текущее значение.${C.x}`);
+  } else {
+    console.log(`\n${C.b}${C.g}  Настройка Евы — вводим секреты по шагам${C.x}`);
+    console.log("  Займёт пару минут. Для каждого ключа подскажу, где его взять, и проверю на месте.");
+    console.log(`  ${C.y}Скрипт не завершится, пока не введёшь все обязательные секреты.${C.x}`);
+  }
 
   // ── Шаг 1: Ollama Cloud (LLM) ─────────────────────────────────────
   head(1, "Ollama Cloud — мозг Евы (модель)");
