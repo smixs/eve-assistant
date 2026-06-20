@@ -31,13 +31,29 @@ if (!SECRET) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
+// null ⇒ файла нет (первый запуск) — отличаем от честного offset 0.
 async function loadOffset() {
   try {
-    return JSON.parse(await readFile(OFFSET_FILE, "utf8")).offset ?? 0;
+    const { offset } = JSON.parse(await readFile(OFFSET_FILE, "utf8"));
+    return typeof offset === "number" ? offset : null;
   } catch {
+    return null;
+  }
+}
+
+// Первый запуск: встать за хвост очереди (последний update_id + 1), чтобы не реплеить
+// install-бэклог. drop_pending уже чистит очередь у Telegram — это пояс поверх подтяжек.
+async function fastForwardOffset() {
+  try {
+    const data = await tg("getUpdates", { offset: -1, timeout: 0 });
+    const list = data.ok ? data.result || [] : [];
+    return list.length ? list[list.length - 1].update_id + 1 : 0;
+  } catch (e) {
+    log("fast-forward offset не удался:", e.message);
     return 0;
   }
 }
+
 async function saveOffset(offset) {
   try {
     await mkdir(DATA_DIR, { recursive: true });
@@ -80,12 +96,19 @@ async function deliver(update) {
 
 async function main() {
   log(`telegram-poll старт → ${ROUTE}`);
-  // Снять webhook, чтобы getUpdates заработал (иначе Telegram отдаёт 409).
-  const dw = await tg("deleteWebhook", { drop_pending_updates: false });
-  log("deleteWebhook:", dw.ok ? "ок" : dw.description);
+  // Снять webhook И сбросить накопленный бэклог: на старте не реплеим старое (иначе
+  // install-очередь выливается одной пачкой и ломает сериализацию сессий eve).
+  const dw = await tg("deleteWebhook", { drop_pending_updates: true });
+  log("deleteWebhook(drop_pending):", dw.ok ? "ок" : dw.description);
 
   let offset = await loadOffset();
-  log("стартовый offset:", offset);
+  if (offset === null) {
+    offset = await fastForwardOffset();
+    log("первый запуск — offset за хвостом очереди:", offset);
+    await saveOffset(offset);
+  } else {
+    log("стартовый offset:", offset);
+  }
 
   for (;;) {
     let data;
