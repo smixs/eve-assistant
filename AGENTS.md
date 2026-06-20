@@ -23,6 +23,10 @@ This project uses the eve framework. Before writing code, always read the releva
 - **Память — systemd-таймеры** (`deploy/iva-memory-*.{service,timer}`): daily/weekly/monthly/yearly + doctor,
   драйвят Iva через `eve/client`. eve-расписания (`defineSchedule`) на self-host НЕ срабатывают (только Vercel Cron).
 - **Время** — `ASSISTANT_TIMEZONE` (→ `TZ`) + динамическая инструкция `now`.
+- **CLI `iva`** (`bin/iva.mjs`, zero-dep) — wrapper в `~/.local/bin`, ставит install.sh:
+  `iva update` (git pull+build+рестарт), `iva config` (→ `scripts/setup.mjs`), `iva doctor`
+  (health+авто-починка), `iva uninstall`, + `status/restart/logs/start/stop`. **Единый источник
+  правды для systemd-юнитов** (`writeUnits()`): install.sh §9 делегирует сюда (`iva _install-units`).
 
 ## Гочи eve (0.11.4)
 - `eve dev` падает на cross-authored относительном `.js`-импорте. Каждая новая тулза/хук/инструкция

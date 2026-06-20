@@ -2,11 +2,15 @@
   "name": "iva",
   "version": "0.0.0",
   "type": "module",
+  "bin": {
+    "iva": "bin/iva.mjs"
+  },
   "imports": {
     "#*": "./agent/*",
     "#evals/*": "./evals/*"
   },
   "scripts": {
+    "iva": "node bin/iva.mjs",
     "setup": "node scripts/setup.mjs",
     "build": "eve build",
     "dev": "eve dev",
