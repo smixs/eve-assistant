@@ -183,8 +183,8 @@ async function main() {
   // ── Шаг 1: провайдер модели + модель ──────────────────────────────
   head(1, "Провайдер и модель — мозг Iva");
   console.log("  Через кого ходить к модели (оба работают с российского IP):");
-  console.log(`    1) Ollama Cloud — ${C.c}https://ollama.com${C.x} (рекоменд., проверен)`);
-  console.log(`    2) OpenCode Zen — ${C.c}https://opencode.ai${C.x} (подписка Go ~$10/мес)`);
+  console.log(`    1) Ollama Cloud — ${C.c}https://ollama.com${C.x} (~$20/мес, лимиты побольше)`);
+  console.log(`    2) OpenCode Zen — ${C.c}https://opencode.ai${C.x} (Go ~$5/мес, дешевле)`);
   const provChoice = await ask("  Провайдер (1/2)", prov0 === "opencode" ? "2" : "1");
   const provider = provChoice.trim() === "2" ? "opencode" : "ollama";
   out.MODEL_PROVIDER = provider;
