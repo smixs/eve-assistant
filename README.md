@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌳 Iva
+<img src="assets/iva-header.webp" alt="IVA — Personal AI agent with long-term memory" width="100%">
 
 **Универсальный персональный AI-агент с долговременной памятью. Который просто работает.**
 
