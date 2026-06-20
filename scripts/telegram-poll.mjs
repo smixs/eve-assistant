@@ -9,6 +9,8 @@
 // локальный роут eve с тем же секретом — Telegram видит обычного бота, прокси не нужен.
 // Канал/агент не меняются. Webhook и polling взаимоисключающи → на старте deleteWebhook.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { execFile } from "node:child_process";
 import { join } from "node:path";
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -21,6 +23,21 @@ const OFFSET_FILE = join(DATA_DIR, "telegram-offset.json");
 // Пауза между апдейтами ОДНОГО чата: даём eve запарковать ход и зарегистрировать
 // continuation-хук, иначе бёрст стартует второй ран на тот же токен → HookConflictError.
 const SETTLE_MS = Number(process.env.TELEGRAM_POLL_SETTLE_MS ?? 1500);
+
+// Доверенные ID — только им разрешены управляющие команды (/restart и т.п.).
+const ALLOWED = new Set(
+  (process.env.TELEGRAM_ALLOWED_USER_IDS ?? "").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean),
+);
+
+const HELP = [
+  "Команды Iva:",
+  "/help — этот список",
+  "/restart — перезапустить агента, если завис",
+  "/new — начать заново (сброс текущего диалога)",
+  "/task <текст> — добавить задачу",
+  "/tasks — показать задачи",
+  "/digest — утренний дайджест",
+].join("\n");
 
 if (!TOKEN) {
   console.error("telegram-poll: нет TELEGRAM_BOT_TOKEN в .env — нечем поллить.");
@@ -106,12 +123,50 @@ async function deliver(update) {
   }
 }
 
+async function reply(chatId, text) {
+  try {
+    await tg("sendMessage", { chat_id: chatId, text });
+  } catch (e) {
+    log("reply failed:", e.message);
+  }
+}
+
+function restartAgent() {
+  return new Promise((resolve) => {
+    execFile("systemctl", ["--user", "restart", "eve-assistant.service"], (err) => resolve(!err));
+  });
+}
+
+// Управляющие команды обрабатываются МОСТОМ (out-of-band) — работают, даже если агент завис.
+// Только для доверенных ID. Возвращает true, если команда обработана (в eve НЕ доставляем).
+async function handleControl(update) {
+  const msg = update.message;
+  const text = (msg?.text || "").trim();
+  if (!text.startsWith("/")) return false;
+  const cmd = text.split(/\s+/)[0].replace(/@\w+$/, "").toLowerCase();
+  if (!["/help", "/restart", "/new", "/clear", "/compact"].includes(cmd)) return false;
+  const from = String(msg?.from?.id ?? "");
+  if (ALLOWED.size === 0 || !ALLOWED.has(from)) return false; // не доверенный — пусть eve дропнет
+  const chatId = msg?.chat?.id;
+  if (cmd === "/help") {
+    await reply(chatId, HELP);
+    return true;
+  }
+  // /restart, /new, /clear, /compact → перезапуск процесса (надёжный сброс/recovery).
+  await reply(chatId, cmd === "/restart" ? "Перезапускаю агента…" : "Начинаю заново — перезапускаю сессию…");
+  const ok = await restartAgent();
+  await reply(chatId, ok ? "Готово — пиши." : "Не смог перезапустить (systemctl). Проверь сервис на сервере.");
+  return true;
+}
+
 async function main() {
   log(`telegram-poll старт → ${ROUTE}`);
-  // Снять webhook И сбросить накопленный бэклог: на старте не реплеим старое (иначе
-  // install-очередь выливается одной пачкой и ломает сериализацию сессий eve).
-  const dw = await tg("deleteWebhook", { drop_pending_updates: true });
-  log("deleteWebhook(drop_pending):", dw.ok ? "ок" : dw.description);
+  // Первый запуск (нет offset-файла) — сбрасываем накопленный install-бэклог (drop_pending=true),
+  // чтобы старое не реплеилось пачкой → параллельные сессии на один чат (HookConflict).
+  // На последующих стартах бэклог НЕ дропаем (не теряем сообщения, пришедшие пока мост лежал).
+  const firstRun = !existsSync(OFFSET_FILE);
+  const dw = await tg("deleteWebhook", { drop_pending_updates: firstRun });
+  log("deleteWebhook:", dw.ok ? `ок (drop_pending=${firstRun})` : dw.description);
 
   let offset = await loadOffset();
   if (offset === null) {
@@ -148,9 +203,15 @@ async function main() {
       continue;
     }
     for (const update of data.result || []) {
+      // Управляющие команды (/restart, /help, /new) — мост обрабатывает сам, в eve не шлёт.
+      if (await handleControl(update)) {
+        offset = update.update_id + 1;
+        await saveOffset(offset);
+        continue;
+      }
       const key = chatKey(update);
-      // Не доставлять следующий апдейт того же чата, пока eve не успел запарковать
-      // предыдущий ход (пауза от момента прошлой доставки в этот чат).
+      // Не доставлять следующий апдейт того же чата, пока eve не запарковал предыдущий ход
+      // (пауза от момента прошлой доставки в этот чат) — иначе бёрст → HookConflict.
       if (key !== null && SETTLE_MS > 0) {
         const prev = lastDeliverAt.get(key);
         if (prev !== undefined) {

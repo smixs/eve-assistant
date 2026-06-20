@@ -216,6 +216,18 @@ export default telegramChannel({
     allowedMediaTypes: ["image/*", "application/pdf"],
     maxBytes: 10 * 1024 * 1024,
   },
+  events: {
+    // Ход упал (в т.ч. переполнение контекста / HookConflict) — даём пользователю escape.
+    async "turn.failed"(_data, channel) {
+      try {
+        await channel.telegram.sendMessage(
+          "Ход не удался (возможно, переполнился контекст). Команды: /new — начать заново, /restart — перезапустить.",
+        );
+      } catch {
+        /* молча игнорируем сбой ответа */
+      }
+    },
+  },
   async onMessage(ctx, message) {
     const userId = message.from?.id;
 
@@ -234,6 +246,33 @@ export default telegramChannel({
         }
       }
       return null; // дропаем апдейт
+    }
+
+    // 1b. Команды, которые роутятся в модель (/help, /restart, /new — обрабатывает поллер-мост
+    //     out-of-band и сюда НЕ доставляет; здесь — только те, что нужны модели).
+    const cmdText = (message.text || "").trim();
+    if (cmdText.startsWith("/")) {
+      const cmd = cmdText.split(/\s+/)[0].replace(/@\w+$/, "").toLowerCase();
+      const rest = cmdText.slice(cmdText.split(/\s+/)[0].length).trim();
+      if (cmd === "/task") {
+        appendDaily("[text]", cmdText);
+        await ctx.telegram.startTyping();
+        return {
+          auth: buildAuth(message),
+          context: [rest ? `Добавь в список задач: ${rest}` : "Спроси, какую задачу добавить."],
+        };
+      }
+      if (cmd === "/tasks") {
+        appendDaily("[text]", cmdText);
+        await ctx.telegram.startTyping();
+        return { auth: buildAuth(message), context: ["Покажи мой список задач (вызови инструмент tasks)."] };
+      }
+      if (cmd === "/digest") {
+        appendDaily("[text]", cmdText);
+        await ctx.telegram.startTyping();
+        return { auth: buildAuth(message), context: ["Загрузи скилл morning-digest и собери утренний дайджест."] };
+      }
+      // прочие команды — пусть отвечает модель обычным ходом (fall through)
     }
 
     // 2. Голос/видео → Deepgram. Берём file_id из raw (eve их не парсит в attachments).
