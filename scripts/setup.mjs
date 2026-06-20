@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Интерактивная настройка ассистента: ключ Ollama Cloud, выбор актуальной модели,
-// (опц.) Telegram. Пишет .env. Без внешних зависимостей.
+// Интерактивная настройка ассистента «Ева»: пишет .env.
+// Пошаговый гайд с инструкциями откуда брать каждый ключ, живой валидацией и
+// циклом — скрипт НЕ завершится, пока не введены все обязательные секреты.
+// Без внешних зависимостей.
 import { createInterface } from "node:readline/promises";
 import { createReadStream } from "node:fs";
 import { readFile, writeFile, access } from "node:fs/promises";
@@ -12,9 +14,13 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ENV_PATH = join(ROOT, ".env");
 const OLLAMA_BASE = "https://ollama.com/v1";
 
-// читаем prompt'ы из tty даже при запуске через `curl | bash`
+const C = { g: "\x1b[32m", y: "\x1b[33m", c: "\x1b[36m", b: "\x1b[1m", r: "\x1b[31m", x: "\x1b[0m" };
+const TOTAL = 5;
+
+// Ввод из tty даже при запуске через `curl | bash`.
 const input = process.stdin.isTTY ? process.stdin : createReadStream("/dev/tty");
 const rl = createInterface({ input, output: process.stdout });
+
 const ask = async (q, def = "") => {
   const a = (await rl.question(def ? `${q} [${def}]: ` : `${q}: `)).trim();
   return a || def;
@@ -23,6 +29,33 @@ const askYesNo = async (q, def = false) => {
   const a = (await ask(`${q} (${def ? "Y/n" : "y/N"})`)).toLowerCase();
   return a ? a.startsWith("y") : def;
 };
+const mask = (s) => (s ? s.slice(0, 6) + "…(оставить)" : "");
+const hr = () => console.log(`${C.c}  ────────────────────────────────────────────${C.x}`);
+const head = (n, title) => console.log(`\n${C.b}${C.c}  Шаг ${n}/${TOTAL}: ${title}${C.x}`);
+
+// Повторяет вопрос, пока не получит непустое и (если задано) валидное значение.
+async function askRequired(label, { help = "", existing = "", validate = null } = {}) {
+  for (;;) {
+    if (help) console.log(help);
+    let a = await ask(label, existing ? mask(existing) : "");
+    if (existing && (!a || a.endsWith("…(оставить)"))) a = existing;
+    a = (a || "").trim();
+    if (!a) {
+      console.log(`${C.y}  ⚠ Обязательное поле — без него Ева не заработает. Введи значение.${C.x}\n`);
+      continue;
+    }
+    if (validate) {
+      process.stdout.write("  проверяю… ");
+      const err = await validate(a);
+      if (err) {
+        console.log(`${C.r}не ок${C.x}\n${C.y}  ⚠ ${err}${C.x}\n`);
+        continue;
+      }
+      console.log(`${C.g}ок${C.x}`);
+    }
+    return a;
+  }
+}
 
 function parseEnv(text) {
   const env = {};
@@ -32,7 +65,6 @@ function parseEnv(text) {
   }
   return env;
 }
-
 async function loadExistingEnv() {
   try {
     await access(ENV_PATH);
@@ -42,6 +74,33 @@ async function loadExistingEnv() {
   }
 }
 
+async function ollamaModels(key) {
+  const res = await fetch(`${OLLAMA_BASE}/models`, { headers: { Authorization: `Bearer ${key}` } });
+  if (res.status === 401 || res.status === 403) {
+    throw Object.assign(new Error("ключ отклонён"), { auth: true });
+  }
+  if (!res.ok) throw new Error(`Ollama API вернул ${res.status}`);
+  return ((await res.json()).data || []).map((m) => m.id).sort();
+}
+async function deepgramCheck(key) {
+  try {
+    const res = await fetch("https://api.deepgram.com/v1/projects", {
+      headers: { Authorization: `Token ${key}` },
+    });
+    if (res.status === 401 || res.status === 403) {
+      return "Deepgram не принял ключ (401/403). Скопируй ключ целиком со страницы API Keys.";
+    }
+    return null; // 200 или иной — ключ хотя бы валиден по форме
+  } catch {
+    return null; // сеть барахлит — не блокируем установку
+  }
+}
+async function telegramGetMe(token) {
+  const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.description || "токен отклонён");
+  return j.result; // { id, username, first_name, ... }
+}
 async function fetchTelegramUserIds(token) {
   const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
   const json = await res.json();
@@ -58,137 +117,136 @@ async function fetchTelegramUserIds(token) {
   return [...seen.values()];
 }
 
-async function fetchModels(key) {
-  const res = await fetch(`${OLLAMA_BASE}/models`, {
-    headers: { Authorization: `Bearer ${key}` },
-  });
-  if (!res.ok) throw new Error(`Ollama API ${res.status}: ${await res.text()}`);
-  const json = await res.json();
-  return (json.data || []).map((m) => m.id).sort();
-}
-
 async function main() {
-  console.log("\n  Настройка ассистента (Ева)\n  ──────────────────────────\n");
+  console.log(`\n${C.b}${C.g}  Настройка Евы — вводим секреты по шагам${C.x}`);
+  console.log("  Займёт пару минут. Для каждого ключа подскажу, где его взять и проверю на месте.");
+  console.log(`  ${C.y}Скрипт не завершится, пока не введёшь все обязательные секреты.${C.x}`);
   const existing = await loadExistingEnv();
   const out = { ...existing };
 
-  // 1. Ключ Ollama Cloud
-  const keyDef = process.env.OLLAMA_API_KEY || existing.OLLAMA_API_KEY || "";
-  let key = await ask(
-    "Ключ Ollama Cloud (https://ollama.com/settings/keys)",
-    keyDef ? keyDef.slice(0, 6) + "…(оставить)" : "",
-  );
-  if (!key || key.endsWith("…(оставить)")) key = keyDef;
-  if (!key) {
-    console.error("Ключ обязателен. Прерываю.");
-    process.exit(1);
-  }
-  out.OLLAMA_API_KEY = key;
-
-  // 2. Актуальные модели
-  console.log("\n  Запрашиваю актуальные модели у Ollama Cloud…");
-  let models;
-  try {
-    models = await fetchModels(key);
-  } catch (e) {
-    console.error("  Не удалось получить список моделей:", e.message);
-    process.exit(1);
-  }
-  const RECOMMENDED = "deepseek-v4-pro";
-  console.log(`\n  Доступно моделей: ${models.length}\n`);
-  models.forEach((id, i) => {
-    const mark = id === RECOMMENDED ? "  ★ рекомендуется" : "";
-    console.log(`   ${String(i + 1).padStart(2)}. ${id}${mark}`);
+  // ── Шаг 1: Ollama Cloud (LLM) ─────────────────────────────────────
+  head(1, "Ollama Cloud — мозг Евы (модель)");
+  console.log(`  Где взять ключ: ${C.c}https://ollama.com/settings/keys${C.x}`);
+  console.log("    1) войди/зарегистрируйся на ollama.com");
+  console.log("    2) Settings → Keys → Create key");
+  console.log("    3) скопируй ключ целиком");
+  let models = [];
+  out.OLLAMA_API_KEY = await askRequired("  Вставь ключ Ollama", {
+    existing: process.env.OLLAMA_API_KEY || existing.OLLAMA_API_KEY || "",
+    validate: async (k) => {
+      try {
+        models = await ollamaModels(k);
+        return null;
+      } catch (e) {
+        return e.auth
+          ? "Ollama не принял ключ. Скопируй заново со страницы Keys (без пробелов)."
+          : `не смог проверить ключ: ${e.message}. Проверь интернет и повтори.`;
+      }
+    },
   });
+
+  const RECOMMENDED = "deepseek-v4-pro";
+  console.log(`\n  Доступно моделей: ${models.length}. Рекомендую ${C.g}${RECOMMENDED}${C.x}.`);
+  models.forEach((id, i) =>
+    console.log(`   ${String(i + 1).padStart(2)}. ${id}${id === RECOMMENDED ? `  ${C.g}★${C.x}` : ""}`),
+  );
   const defIdx = models.indexOf(out.OLLAMA_MODEL || RECOMMENDED);
-  const defNum = (defIdx >= 0 ? defIdx : models.indexOf(RECOMMENDED)) + 1 || 1;
-  let choice = await ask(`\n  Выбери модель (номер)`, String(defNum));
+  const defNum = (defIdx >= 0 ? defIdx : Math.max(0, models.indexOf(RECOMMENDED))) + 1;
+  const choice = await ask("\n  Номер модели", String(defNum || 1));
   let idx = parseInt(choice, 10) - 1;
   if (isNaN(idx) || idx < 0 || idx >= models.length) idx = defNum - 1;
-  out.OLLAMA_MODEL = models[idx];
-  console.log(`  → ${out.OLLAMA_MODEL}`);
+  out.OLLAMA_MODEL = models[idx] || RECOMMENDED;
+  out.OLLAMA_CONTEXT_WINDOW = out.OLLAMA_CONTEXT_WINDOW || "131072";
+  console.log(`  → модель: ${C.g}${out.OLLAMA_MODEL}${C.x}`);
 
-  out.OLLAMA_CONTEXT_WINDOW = await ask(
-    "\n  Размер контекстного окна (токены)",
-    out.OLLAMA_CONTEXT_WINDOW || "131072",
-  );
+  // ── Шаг 2: Deepgram (голос/видео) ─────────────────────────────────
+  head(2, "Deepgram — расшифровка голоса и видео");
+  console.log(`  Где взять ключ: ${C.c}https://console.deepgram.com${C.x}`);
+  console.log("    1) зарегистрируйся (дают бесплатный стартовый кредит)");
+  console.log("    2) API Keys → Create a New API Key");
+  console.log("    3) скопируй ключ");
+  out.DEEPGRAM_API_KEY = await askRequired("  Вставь Deepgram API key", {
+    existing: process.env.DEEPGRAM_API_KEY || existing.DEEPGRAM_API_KEY || "",
+    validate: deepgramCheck,
+  });
+  out.DEEPGRAM_LANGUAGE = await ask("  Язык распознавания (multi = авто ru/uz/en)", out.DEEPGRAM_LANGUAGE || "multi");
 
-  // 3. Telegram (опционально)
-  if (await askYesNo("\n  Настроить Telegram-бота сейчас?", Boolean(existing.TELEGRAM_BOT_TOKEN))) {
-    out.TELEGRAM_BOT_TOKEN = await ask("  Bot token (@BotFather)", existing.TELEGRAM_BOT_TOKEN || "");
-    out.TELEGRAM_BOT_USERNAME = await ask("  Bot username (без @)", existing.TELEGRAM_BOT_USERNAME || "");
-    out.TELEGRAM_WEBHOOK_SECRET_TOKEN =
-      existing.TELEGRAM_WEBHOOK_SECRET_TOKEN || randomBytes(24).toString("hex");
-    console.log(`  webhook secret: ${out.TELEGRAM_WEBHOOK_SECRET_TOKEN} (сгенерирован)`);
-
-    // Доверенные user ID — единственные, кому бот отвечает (защита приватных данных).
-    const ids = new Set(
-      (existing.TELEGRAM_ALLOWED_USER_IDS || "").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean),
-    );
-    console.log("\n  Доверенные пользователи: бот отвечает ТОЛЬКО им (иначе данные доступны кому угодно).");
-    if (out.TELEGRAM_BOT_TOKEN && (await askYesNo("  Определить твой Telegram ID автоматически?", true))) {
-      await ask("  → Напиши боту любое сообщение в Telegram и нажми Enter");
+  // ── Шаг 3: Telegram-бот ───────────────────────────────────────────
+  head(3, "Telegram-бот — через него ты говоришь с Евой");
+  console.log("  Создай бота у @BotFather в Telegram:");
+  console.log("    1) открой чат с @BotFather");
+  console.log("    2) отправь /newbot");
+  console.log("    3) задай имя и username бота");
+  console.log("    4) скопируй token вида 123456789:ABCdef...");
+  let me = null;
+  out.TELEGRAM_BOT_TOKEN = await askRequired("  Вставь Bot token", {
+    existing: existing.TELEGRAM_BOT_TOKEN || "",
+    validate: async (t) => {
       try {
-        const found = await fetchTelegramUserIds(out.TELEGRAM_BOT_TOKEN);
-        if (found.length) {
-          found.forEach((u, i) => console.log(`   ${i + 1}. ${u.id}  ${u.name}`));
-          const pick = await ask("  Кого добавить? номера через запятую (Enter — всех)", "");
-          const chosen = pick
-            ? pick.split(/[,\s]+/).map((n) => found[parseInt(n, 10) - 1]).filter(Boolean)
-            : found;
-          chosen.forEach((u) => ids.add(u.id));
-        } else {
-          console.log("  getUpdates пуст (или вебхук уже настроен) — введи ID вручную.");
-        }
+        me = await telegramGetMe(t);
+        return null;
       } catch (e) {
-        console.log(`  Не удалось получить updates: ${e.message} — введи ID вручную.`);
+        return `Telegram не принял токен (${e.message}). Скопируй заново у @BotFather.`;
       }
-    }
-    out.TELEGRAM_ALLOWED_USER_IDS = await ask(
-      "  Доверенные Telegram ID (через запятую)",
-      [...ids].join(","),
-    );
-    if (!out.TELEGRAM_ALLOWED_USER_IDS.trim()) {
-      console.log("  ⚠ allowlist пуст — бот не будет отвечать НИКОМУ (fail-closed). Добавь ID позже в .env.");
-    }
-    out.TELEGRAM_DIGEST_CHAT_ID = await ask(
-      "  Chat ID для дайджеста",
-      existing.TELEGRAM_DIGEST_CHAT_ID || [...ids][0] || "",
-    );
-  }
+    },
+  });
+  out.TELEGRAM_BOT_USERNAME =
+    me?.username || out.TELEGRAM_BOT_USERNAME || (await ask("  Username бота (без @)", existing.TELEGRAM_BOT_USERNAME || ""));
+  if (me?.username) console.log(`  → бот: ${C.g}@${me.username}${C.x}`);
+  out.TELEGRAM_WEBHOOK_SECRET_TOKEN = existing.TELEGRAM_WEBHOOK_SECRET_TOKEN || randomBytes(24).toString("hex");
 
-  // 4. Deepgram — транскрипция голоса/видео (обязательно для голосовых)
-  const dgDef = process.env.DEEPGRAM_API_KEY || existing.DEEPGRAM_API_KEY || "";
-  let dgKey = await ask(
-    "\n  Deepgram API key (https://console.deepgram.com)",
-    dgDef ? dgDef.slice(0, 6) + "…(оставить)" : "",
+  // ── Шаг 4: доверенные пользователи (цикл до ≥1 ID) ────────────────
+  head(4, "Доступ — кому бот вообще отвечает");
+  console.log(`  ${C.y}ВАЖНО:${C.x} Ева отвечает ТОЛЬКО доверенным Telegram ID.`);
+  console.log("  Без хотя бы одного ID бот промолчит всем (так твои данные защищены).");
+  const ids = new Set(
+    (existing.TELEGRAM_ALLOWED_USER_IDS || "").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean),
   );
-  if (!dgKey || dgKey.endsWith("…(оставить)")) dgKey = dgDef;
-  if (!dgKey) {
-    console.error("  Deepgram-ключ обязателен (голос/видео не расшифровать без него). Прерываю.");
-    process.exit(1);
+  while (ids.size === 0) {
+    console.log(
+      `\n  Определим твой ID. ${C.c}Открой Telegram, найди @${out.TELEGRAM_BOT_USERNAME || "своего_бота"} и напиши ему любое сообщение${C.x} (напр. «привет»).`,
+    );
+    await ask("  Написал боту? нажми Enter");
+    try {
+      const found = await fetchTelegramUserIds(out.TELEGRAM_BOT_TOKEN);
+      if (found.length) {
+        console.log("  Нашёл, кто писал боту:");
+        found.forEach((u, i) => console.log(`   ${i + 1}. ${u.id}  ${u.name}`));
+        const pick = await ask("  Чьи ID добавить? номера через запятую (Enter — добавить всех)", "");
+        const chosen = pick
+          ? pick.split(/[,\s]+/).map((n) => found[parseInt(n, 10) - 1]).filter(Boolean)
+          : found;
+        chosen.forEach((u) => ids.add(u.id));
+      } else {
+        console.log(`${C.y}  Не вижу сообщений боту. Точно написал? (если уже стоит вебхук — getUpdates не отдаёт апдейты)${C.x}`);
+      }
+    } catch (e) {
+      console.log(`${C.y}  Не смог получить апдейты: ${e.message}${C.x}`);
+    }
+    if (ids.size === 0) {
+      const manual = await ask(
+        "  Введи свой Telegram ID вручную (узнать: напиши @userinfobot), или Enter — попробовать снова",
+        "",
+      );
+      manual.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean).forEach((s) => ids.add(s));
+    }
   }
-  out.DEEPGRAM_API_KEY = dgKey;
-  out.DEEPGRAM_LANGUAGE = await ask(
-    "  Язык распознавания (multi = авто ru/uz/en)",
-    out.DEEPGRAM_LANGUAGE || "multi",
-  );
+  out.TELEGRAM_ALLOWED_USER_IDS = [...ids].join(",");
+  out.TELEGRAM_DIGEST_CHAT_ID = existing.TELEGRAM_DIGEST_CHAT_ID || [...ids][0] || "";
+  console.log(`  → доступ разрешён ID: ${C.g}${out.TELEGRAM_ALLOWED_USER_IDS}${C.x}`);
 
-  // 5. Часовой пояс и vault
+  // ── Шаг 5: часовой пояс и vault ───────────────────────────────────
+  head(5, "Часовой пояс и хранилище памяти");
+  console.log("  Часовой пояс нужен, чтобы Ева понимала твоё реальное время, а не время сервера.");
   out.ASSISTANT_TIMEZONE = await ask(
-    "\n  Часовой пояс (IANA, напр. Asia/Almaty)",
+    "  Часовой пояс (IANA, напр. Asia/Almaty, Asia/Tashkent, Europe/Moscow)",
     out.ASSISTANT_TIMEZONE || "Asia/Almaty",
   );
-  out.ASSISTANT_VAULT_DIR = await ask(
-    "  Каталог vault (память + git-бэкап)",
-    out.ASSISTANT_VAULT_DIR || "vault",
-  );
-
-  // 6. Прочее
+  out.ASSISTANT_VAULT_DIR = await ask("  Каталог vault (память + git-бэкап)", out.ASSISTANT_VAULT_DIR || "vault");
   out.ASSISTANT_DATA_DIR = out.ASSISTANT_DATA_DIR || "data";
   out.ASSISTANT_HOST = out.ASSISTANT_HOST || "http://127.0.0.1:3000";
 
-  // Запись .env
+  // ── Запись .env ───────────────────────────────────────────────────
   const order = [
     "OLLAMA_API_KEY", "OLLAMA_MODEL", "OLLAMA_CONTEXT_WINDOW",
     "TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_WEBHOOK_SECRET_TOKEN",
@@ -201,15 +259,16 @@ async function main() {
   const body = keys.map((k) => `${k}=${out[k]}`).join("\n") + "\n";
   await writeFile(ENV_PATH, body, "utf8");
 
-  console.log(`\n  ✓ Записан ${ENV_PATH}`);
-  console.log(`  ✓ Модель: ${out.OLLAMA_MODEL}`);
-  console.log(out.TELEGRAM_BOT_TOKEN ? "  ✓ Telegram настроен" : "  • Telegram пропущен");
-  console.log(out.DEEPGRAM_API_KEY ? `  ✓ Deepgram (${out.DEEPGRAM_LANGUAGE})` : "  • Deepgram пропущен");
-  console.log(`  ✓ TZ: ${out.ASSISTANT_TIMEZONE} · vault: ${out.ASSISTANT_VAULT_DIR}`);
+  console.log();
+  hr();
+  console.log(`${C.g}${C.b}  ✓ Готово — всё записано в .env${C.x}`);
+  console.log(`  Модель: ${C.g}${out.OLLAMA_MODEL}${C.x} · Deepgram: ${out.DEEPGRAM_LANGUAGE} · Бот: ${C.g}@${out.TELEGRAM_BOT_USERNAME}${C.x}`);
+  console.log(`  Доступ: ${out.TELEGRAM_ALLOWED_USER_IDS} · TZ: ${out.ASSISTANT_TIMEZONE} · vault: ${out.ASSISTANT_VAULT_DIR}`);
+  hr();
   rl.close();
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error(`${C.r}Настройка прервана:${C.x}`, e?.message || e);
   process.exit(1);
 });
