@@ -58,7 +58,7 @@ npm run dev            # интерактивный TUI (eve dev), сервер 
 ```bash
 npm ci
 npm exec -- eve build         # → ./.output
-node .output/server/index.mjs # или npm start (eve start); порт через PORT (по умолчанию 3000)
+node .output/server/index.mjs # или npm start (eve start); порт через PORT (по умолчанию IVA_PORT=8723)
 ```
 Запускай под process-manager (systemd/pm2) с подгрузкой `.env`. Пример systemd-юнита:
 ```ini
@@ -84,7 +84,7 @@ Scaffold-канал использует `localDev()` + `placeholderAuth()`. В 
 systemctl --user status iva-telegram-poll
 journalctl --user -u iva-telegram-poll -f
 ```
-Реализация: `scripts/telegram-poll.mjs` (`getUpdates` → `POST 127.0.0.1:3000/eve/v1/telegram`
+Реализация: `scripts/telegram-poll.mjs` (`getUpdates` → `POST 127.0.0.1:$IVA_PORT/eve/v1/telegram`
 с заголовком `X-Telegram-Bot-Api-Secret-Token`). Offset хранится в `data/telegram-offset.json`.
 
 ### Webhook (опционально, если есть публичный HTTPS)
