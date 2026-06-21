@@ -9,6 +9,7 @@ import { readFile, writeFile, access } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { defaultChecker, PortSelector } from "./lib/ports.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ENV_PATH = join(ROOT, ".env");
@@ -38,6 +39,27 @@ const askYesNo = async (q, def = false) => {
   const a = (await ask(`${q} (${def ? "Y/n" : "y/N"})`)).toLowerCase();
   return a ? a.startsWith("y") : def;
 };
+
+// Выбор свободного порта: спрашиваем желаемый, проверяем доступность теми же Probe,
+// что и `check-port` (scripts/lib/ports.mjs); при занятости предлагаем ближайший свободный.
+// Закрывает корень бага на этапе настройки — сервер не стартанёт на занятом порту.
+async function pickPort(def) {
+  const checker = defaultChecker();
+  for (;;) {
+    const port = Number(await ask("  Порт локального eve-сервера", String(def)));
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      console.log(`  ${C.r}Некорректный порт${C.x} — нужно число 1..65535.`);
+      continue;
+    }
+    const { occupied, holders } = await checker.check(port);
+    if (!occupied) return String(port);
+    const free = await new PortSelector(checker).firstFree(port + 1);
+    const who = holders.length ? ` (${holders.join("; ")})` : "";
+    console.log(`  ${C.y}Порт ${port} занят${who}.${C.x}${free ? ` Ближайший свободный: ${C.g}${free}${C.x}.` : ""}`);
+    if (free && (await askYesNo(`  Взять ${free}?`, true))) return String(free);
+    // иначе повторяем цикл — пользователь введёт другой порт вручную
+  }
+}
 const mask = (s) => (s ? s.slice(0, 6) + "…(оставить)" : "");
 const hr = () => console.log(`${C.c}  ────────────────────────────────────────────${C.x}`);
 const head = (n, title) => console.log(`\n${C.b}${C.c}  Шаг ${n}/${TOTAL}: ${title}${C.x}`);
@@ -308,8 +330,9 @@ async function main() {
   out.ASSISTANT_VAULT_DIR = await ask("  Каталог vault (память + git-бэкап)", out.ASSISTANT_VAULT_DIR || "vault");
   out.ASSISTANT_DATA_DIR = out.ASSISTANT_DATA_DIR || "data";
   // Непопсовый порт: 3000/8000/8080 на типовом VPS заняты (docker и т.п.). Сервер слушает IVA_PORT,
-  // а клиенты (poll-мост, дайджест, роллапы) ходят на него же через ASSISTANT_HOST.
-  out.IVA_PORT = out.IVA_PORT || "8723";
+  // а клиенты (poll-мост, дайджест, роллапы) ходят на него же через ASSISTANT_HOST. Проверяем,
+  // что выбранный порт свободен, — иначе сервер упал бы с EADDRINUSE (тихий выход → бот молчит).
+  out.IVA_PORT = await pickPort(out.IVA_PORT || "8723");
   out.ASSISTANT_HOST = out.ASSISTANT_HOST || `http://127.0.0.1:${out.IVA_PORT}`;
 
   // ── Запись .env ───────────────────────────────────────────────────
