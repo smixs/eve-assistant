@@ -211,8 +211,7 @@ If Iva is useful to you, a ⭐ genuinely helps other people find it — that's t
 ## Built on
 
 [eve](https://www.npmjs.com/package/eve) (the agent framework), autograph (the typed-graph memory
-skill), and the ideas from [agent-second-brain](https://github.com/smixs/agent-second-brain). README
-format inspired by [nanobot](https://github.com/HKUDS/nanobot).
+skill), and the ideas from [agent-second-brain](https://github.com/smixs/agent-second-brain).
 
 ## License
 
