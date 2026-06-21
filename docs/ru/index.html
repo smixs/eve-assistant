@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Iva — личный AI-агент с долговременной памятью</title>
+<meta name="description" content="Iva — личный AI-агент с долговременной памятью. Живёт в Telegram, ставится одной командой, работает с любого IP (в том числе из России и Беларуси, без VPN). Open-source, на открытых моделях: DeepSeek, Kimi, GLM.">
+<meta name="keywords" content="AI агент, персональный AI, личный ассистент, долговременная память, Telegram бот, self-hosted, open source, DeepSeek, Ollama, ИИ агент, второй мозг">
+<meta name="author" content="smixs">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="canonical" href="https://smixs.github.io/iva/ru/">
+<link rel="alternate" hreflang="en" href="https://smixs.github.io/iva/">
+<link rel="alternate" hreflang="ru" href="https://smixs.github.io/iva/ru/">
+<link rel="alternate" hreflang="x-default" href="https://smixs.github.io/iva/">
+<link rel="icon" type="image/png" href="../favicon.png">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Iva">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:title" content="Iva — личный AI-агент с долговременной памятью">
+<meta property="og:description" content="Личный AI-агент в Telegram. Ставится одной командой, помнит всё, работает с любого IP без VPN. Open-source, на открытых моделях.">
+<meta property="og:url" content="https://smixs.github.io/iva/ru/">
+<meta property="og:image" content="https://smixs.github.io/iva/iva-og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Iva — личный AI-агент с долговременной памятью">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Iva — личный AI-агент с долговременной памятью">
+<meta name="twitter:description" content="Личный AI-агент в Telegram. Ставится одной командой, помнит всё, работает с любого IP без VPN.">
+<meta name="twitter:image" content="https://smixs.github.io/iva/iva-og.png">
+<meta name="twitter:image:alt" content="Iva — личный AI-агент с долговременной памятью">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Iva",
+  "alternateName": "Iva — личный AI-агент",
+  "description": "Личный AI-агент с долговременной памятью. Живёт в Telegram, ставится одной командой, работает с любого IP. Open-source, на открытых моделях.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Linux, macOS",
+  "url": "https://smixs.github.io/iva/ru/",
+  "image": "https://smixs.github.io/iva/iva-og.png",
+  "softwareVersion": "0.1.0",
+  "license": "https://github.com/smixs/iva/blob/main/LICENSE",
+  "codeRepository": "https://github.com/smixs/iva",
+  "author": { "@type": "Person", "name": "smixs", "url": "https://github.com/smixs" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #0a0a0a; color: #e8e8e8;
+    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: #5fd3c4; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px 80px; }
+  .lang { text-align: right; padding-top: 16px; font-size: 14px; color: #777; }
+  .lang a { color: #9aa0a0; }
+  .lang b { color: #e8e8e8; }
+  header { text-align: center; padding-top: 8px; }
+  header img { width: 100%; max-width: 1000px; height: auto; border-radius: 12px; }
+  h1 { font-size: 0; margin: 0; }
+  .tagline { font-size: 22px; font-weight: 600; margin: 28px 0 8px; }
+  .sub { color: #9aa0a0; margin: 0 0 28px; }
+  .cta { display: inline-block; background: #1f6f64; color: #fff; padding: 12px 22px;
+         border-radius: 10px; font-weight: 600; margin: 6px; }
+  .cta.alt { background: #1a1a1a; border: 1px solid #333; }
+  pre { background: #141414; border: 1px solid #262626; border-radius: 10px;
+        padding: 16px; overflow-x: auto; text-align: left; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; }
+  h2 { font-size: 22px; margin: 48px 0 14px; }
+  ul { padding-left: 0; list-style: none; }
+  li { margin: 10px 0; }
+  .feat b { color: #fff; }
+  .tree { background: #141414; border: 1px solid #262626; border-radius: 10px; padding: 16px;
+          white-space: pre; overflow-x: auto; color: #9aa0a0; font-size: 14px; line-height: 1.5; }
+  footer { text-align: center; color: #777; margin-top: 64px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="lang"><a href="../">English</a> · <b>Русский</b></p>
+  <header>
+    <img src="../iva-header.webp" alt="Iva — личный AI-агент с долговременной памятью" width="1000" height="394">
+    <h1>Iva — личный AI-агент с долговременной памятью</h1>
+    <p class="tagline">Ваш личный AI-агент. Ваш сервер, ваша память, без вендор-лока - одна команда, и всё работает.</p>
+    <p class="sub">Живёт в Telegram. Ставится одной командой. Работает с любого IP, без VPN.</p>
+    <p>
+      <a class="cta" href="https://github.com/smixs/iva">Открыть на GitHub</a>
+      <a class="cta alt" href="https://github.com/smixs/iva/blob/main/README.ru.md#установка">Как установить</a>
+    </p>
+  </header>
+
+  <h2>Установка одной командой</h2>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash</code></pre>
+
+  <h2>Почему Iva</h2>
+  <p>Как Linux Mint среди AI-агентов: поставил одной командой - и всё работает из коробки. Никаких
+  векторных баз, серверов эмбеддингов, Kubernetes - обычные файлы, один процесс. Открытый код, открытые
+  модели, и модель выбираете вы по имени (DeepSeek, Kimi, GLM). Ваш ключ, без наценки и вендор-лока. И
+  главное - работает с любого IP, включая Россию и Беларусь, без VPN.</p>
+
+  <h2>Что умеет</h2>
+  <ul class="feat">
+    <li>🎙️ <b>Голос и видео</b> - расшифровывает голосовые и кружки, понимает речь на любом языке.</li>
+    <li>🧠 <b>Долгая память</b> - дерево из обычных файлов, без тяжёлых баз данных.</li>
+    <li>🔎 <b>Быстрый поиск</b> - находит нужное за секунды.</li>
+    <li>⏰ <b>По расписанию</b> - дайджест дня или недели, регулярные задачи, сводка по почте, вовремя.</li>
+    <li>🔔 <b>Напоминания</b> - скажете, о чём и когда, и Iva не даст забыть.</li>
+    <li>🤖 <b>Выбор модели</b> - DeepSeek, Kimi, GLM и другие открытые модели.</li>
+    <li>🌐 <b>Умеет больше</b> - ищет в интернете, открывает сайты, водит браузер, подключается к MCP.</li>
+    <li>🔒 <b>Приватность</b> - код и память остаются на вашем сервере, не в чужом облаке.</li>
+  </ul>
+
+  <h2>Память - то, что копится</h2>
+  <p>Память Iva устроена как дерево (а <em>ива</em> - это дерево). Это «low-context memory» по замыслу:
+  в модель никогда не грузится вся история, только крошечное ядро плюс то, что нужно под задачу -
+  находится обычным поиском по файлам.</p>
+  <div class="tree">      🪵  СТВОЛ    - год + карточки людей, проектов, решений
+     ╱  ╲
+    🌿 ВЕТВИ      - месячные выжимки, собранные из недель, из дней
+   ╱      ╲
+  🍃 ЛИСТЬЯ        - полный, дословный транскрипт каждого дня</div>
+  <p>Каждую ночь Iva сворачивает листья в выжимки и собирает их вверх по веткам. Ноль инфраструктуры,
+  всё читаемо и git-diff-аемо - никакой векторной БД, которую надо запускать и оплачивать.</p>
+
+  <h2>Провайдеры и цена</h2>
+  <p>Бесплатный и открытый. Платите только за маленький всегда включённый сервер (~$5/мес) и одну
+  подписку на модель - OpenCode Zen Go (~$5/мес) или Ollama Cloud (~$20/мес), оба OpenAI-совместимы, ваш
+  ключ. Голос работает на <a href="https://console.deepgram.com">Deepgram</a> (бесплатный стартовый кредит).</p>
+
+  <p style="text-align:center; margin-top:40px">
+    <a class="cta" href="https://github.com/smixs/iva">Поставить Iva →</a>
+  </p>
+
+  <footer>
+    Open-source · MIT · <a href="https://github.com/smixs/iva">github.com/smixs/iva</a><br>
+    Вырос из проекта <a href="https://github.com/smixs/agent-second-brain">agent-second-brain</a>
+  </footer>
+</div>
+</body>
+</html>
