@@ -4,7 +4,7 @@
 
 <img src="assets/iva-header.webp" alt="Iva — personal AI agent with long-term memory" width="100%">
 
-**Your own AI agent. Your server, your memory, no lock-in — one command and it just works.**
+**Your own AI agent. Your server, your memory — one command and it just works.**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
@@ -33,22 +33,24 @@ on your machine. You bring your own model key, and you pick the model.
 
 Plenty of self-hosted personal agents exist — [OpenClaw](https://github.com/openclaw/openclaw),
 [Hermes](https://github.com/NousResearch/hermes-agent),
-[nanobot](https://github.com/HKUDS/nanobot) and more. They're good. Iva makes a different bet:
-**be the Linux Mint of AI agents.** Install from one command and everything works out of the box —
-the boring parts already wired, sane defaults already chosen.
+[nanobot](https://github.com/HKUDS/nanobot) and more. They're good. But every one of them hands you a
+pile of decisions: which model, which memory design, which search backend, how to deploy, how to wire
+it all together. That's the real problem — not too few agents, too much choice.
 
-The philosophy in four lines:
+Iva makes those choices for you. We picked the best of each piece by hand — the model providers, the
+voice engine, the memory, the search — assembled them, set the defaults, and made sure it works. The
+Linux Mint of AI agents: one command, and it just runs.
 
-- **Simplest thing that works.** No vector database, no embedding server, no Kubernetes. Plain files,
-  one process, one command. Every dependency has to earn its place.
-- **A hand-picked stack, assembled for you.** Telegram polling, Deepgram for voice, a tree-shaped
-  memory, systemd rollups — the good tools, glued together so you don't have to.
+- **The hard choices, already made.** Model, memory, voice, search, deployment — each one picked and
+  wired, so you don't compare five options for every part.
+- **Best of each, by hand.** Telegram for the chat, Deepgram for voice, a tree-shaped memory, nightly
+  rollups — the good tools, put together so you don't have to.
 - **Open all the way down.** Open-source code, open-source models. The open models are genuinely good
   now, so there's no reason to rent a closed one and watch the price move under you.
-- **You pick the model, by name.** DeepSeek V4 Pro (the default), DeepSeek V4 Flash, Kimi, GLM — your
-  key, your choice, no markup on top of the provider.
+- **You still pick the model, by name.** DeepSeek V4 Pro (the default), DeepSeek V4 Flash, Kimi, GLM —
+  your key, your choice, no markup on top of the provider.
 
-No vendor lock-in. No surprise API bill. The agent is yours, and it keeps working the same tomorrow.
+One command, and it works. The agent is yours, and it keeps working the same tomorrow.
 
 ---
 
@@ -111,7 +113,7 @@ What that buys you:
 - **Easy to fix** — when memory is wrong, you edit a file. No re-indexing, no stale-embedding mystery.
 
 This is the same idea Iva grew out of: [agent-second-brain](https://github.com/smixs/agent-second-brain),
-now without the vendor lock-in.
+now running on open models you own — no subscription required.
 
 ---
 

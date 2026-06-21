@@ -48,7 +48,7 @@ This is a distinct, underserved audience — don't dilute the English launch wit
 
 ## Repo metadata
 
-- **Description:** `Open-source personal AI agent with long-term memory. One command, your server, no lock-in.`
+- **Description:** `Open-source personal AI agent with long-term memory. The best tools, hand-picked and assembled — one command and it works.`
 - **Topics:** `ai-agent`, `personal-assistant`, `llm`, `telegram-bot`, `self-hosted`, `open-source`,
   `long-term-memory`, `second-brain`, `deepseek`, `local-first`, `agentic-memory`.
 
