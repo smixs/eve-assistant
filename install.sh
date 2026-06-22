@@ -148,6 +148,37 @@ echo "  ────────────────────────
 # root запускает напрямую; иначе через sudo (один раз кешируем пароль).
 run_root() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
 
+# ── Своп для слабых VPS ($4 DigitalOcean droplet = 512MB RAM) ─────────────
+# На низкой RAM без свопа npm install и особенно `eve build` (rolldown+nitro+node)
+# падают с OOM — ядро убивает процесс (Killed, код 137). Если RAM < ~1.5GB и свопа
+# нет — заводим swapfile на 2GB ДО тяжёлых шагов. Идемпотентно: активный своп не
+# трогаем, существующий /swapfile просто включаем, в fstab не дублируем.
+ensure_swap() {
+  local ram_mb swap_mb free_mb total
+  ram_mb=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 0)
+  swap_mb=$(awk '/SwapTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 0)
+  [ "${ram_mb:-0}" -ge 1500 ] && return 0          # памяти достаточно
+  [ "${swap_mb:-0}" -ge 1024 ] && return 0          # своп уже есть
+  step "$(t "Low RAM (${ram_mb}MB), no swap — adding a 2GB swapfile so the build won't get OOM-killed…" "Мало RAM (${ram_mb}МБ), свопа нет — добавляю swapfile 2GB, чтобы сборку не убил OOM…")"
+  if [ ! -f /swapfile ]; then
+    free_mb=$(df -Pm / 2>/dev/null | awk 'NR==2{print $4}')
+    if [ "${free_mb:-0}" -lt 2600 ]; then
+      warn "$(t "Not enough free disk for a 2GB swapfile (${free_mb}MB free) — skipping. The build may OOM; free up space or use a bigger droplet." "Мало места под swapfile 2GB (свободно ${free_mb}МБ) — пропускаю. Сборка может упасть по OOM; освободите место или возьмите дроплет побольше.")"
+      return 0
+    fi
+    run_root sh -c 'fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none' \
+      || { warn "$(t "couldn't allocate /swapfile — skipping swap" "не смог создать /swapfile — пропускаю своп")"; return 0; }
+    run_root chmod 600 /swapfile
+    run_root mkswap /swapfile >/dev/null 2>&1 || { warn "mkswap failed — skipping swap"; return 0; }
+  fi
+  run_root swapon /swapfile 2>/dev/null || { warn "swapon failed — skipping swap"; return 0; }
+  grep -qE '^[[:space:]]*/swapfile[[:space:]]' /etc/fstab 2>/dev/null \
+    || echo '/swapfile none swap sw 0 0' | run_root tee -a /etc/fstab >/dev/null
+  total=$(awk '/SwapTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo "?")
+  ok "$(t "Swap on (${total}MB total) — build will have headroom" "Своп включён (всего ${total}МБ) — сборке хватит памяти")"
+}
+ensure_swap
+
 # ─────────────────────────────────────────────────────────────────────────
 # 1. Системные зависимости. Detect-then-install.
 #    ffmpeg опционален (nova-3 обычно принимает видео напрямую); pandoc/poppler —
