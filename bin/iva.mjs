@@ -176,9 +176,24 @@ function restartServices() {
   sc("restart", ...SERVICES);
 }
 
+// ANSI-дерево как при установке. Единственный источник арта — install.sh (heredoc
+// IVA_TREE), читаем его оттуда, чтобы не плодить копию. Только в реальном терминале;
+// любой сбой — молча пропускаем, обновление важнее картинки.
+function showTree() {
+  if (!process.stdout.isTTY) return;
+  try {
+    const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
+    const body = sh.split("<<'IVA_TREE'\n")[1]?.split("\nIVA_TREE")[0];
+    if (body) process.stdout.write(`\n${body.replace(/\\033/g, "\x1b")}\n\n`);
+  } catch {
+    /* нет install.sh или не прочиталось — пропускаем арт */
+  }
+}
+
 // ── команды ───────────────────────────────────────────────────────────────
 async function cmdUpdate(args) {
   const force = args.includes("--force");
+  showTree();
   step("Обновляю Iva…");
   const before = gitHead();
   const pull = cap("git", ["pull", "--ff-only"]);
