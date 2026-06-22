@@ -15,13 +15,14 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ENV_PATH = join(ROOT, ".env");
 const OLLAMA_BASE = "https://ollama.com/v1";
 const OPENCODE_BASE = "https://opencode.ai/zen/go/v1";
-// OpenCode Go models (no /models endpoint — list is hardcoded; override in .env).
+// OpenCode Go models — bare ID без префикса "opencode-go/": именно его ждёт
+// эндпоинт /v1 в теле запроса (с префиксом отвечает "Model ... is not supported").
 const OPENCODE_MODELS = [
-  "opencode-go/deepseek-v4-pro",
-  "opencode-go/deepseek-v4-flash",
-  "opencode-go/kimi-k2.7-code",
-  "opencode-go/glm-5.2",
-  "opencode-go/qwen3.7",
+  "deepseek-v4-pro",
+  "deepseek-v4-flash",
+  "kimi-k2.7-code",
+  "glm-5.2",
+  "qwen3.7",
 ];
 
 const C = { g: "\x1b[32m", y: "\x1b[33m", c: "\x1b[36m", b: "\x1b[1m", r: "\x1b[31m", x: "\x1b[0m" };
@@ -286,7 +287,9 @@ async function main() {
       validate: opencodeCheck,
     });
     console.log(`\n  ${t("OpenCode Go models:", "Модели OpenCode Go:")}`);
-    out.OPENCODE_MODEL = await pickFromList(OPENCODE_MODELS, out.OPENCODE_MODEL, OPENCODE_MODELS[0]);
+    // Срезаем устаревший префикс из старых .env, чтобы текущая модель предвыбралась из bare-списка.
+    const curModel = (out.OPENCODE_MODEL || "").replace(/^opencode-go\//, "");
+    out.OPENCODE_MODEL = await pickFromList(OPENCODE_MODELS, curModel, OPENCODE_MODELS[0]);
     out.OPENCODE_CONTEXT_WINDOW = out.OPENCODE_CONTEXT_WINDOW || "131072";
     console.log(`  → ${t("model", "модель")}: ${C.g}${out.OPENCODE_MODEL}${C.x}`);
   }
