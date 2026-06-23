@@ -9,18 +9,9 @@
 //   • НИКОГДА не бросает — на любую ошибку возвращает { ok:false, error }.
 // Возвращает { ok, fellBack, error } — вызывающий cron-скрипт по fellBack даёт агенту
 // обратную связь в ту же сессию, чтобы он переформатировал следующий отчёт.
-import { toTelegramHtmlChunks } from "./telegram-format.mjs";
-
-// HTML → читаемый plain: убираем теги и декодируем 4 поддерживаемые сущности.
-// Шлётся БЕЗ parse_mode, поэтому экранирование не нужно — текст идёт буквально.
-function htmlToPlain(html) {
-  return String(html)
-    .replace(/<[^>]+>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&");
-}
+// htmlToPlain (HTML→plain с декодом сущностей) живёт в общем модуле — тот же
+// фолбэк-декодер использует и Telegram-канал (agent/channels/telegram.ts).
+import { toTelegramHtmlChunks, htmlToPlain } from "./telegram-format.mjs";
 
 async function post(bot, body) {
   const res = await fetch(`https://api.telegram.org/bot${bot}/sendMessage`, {

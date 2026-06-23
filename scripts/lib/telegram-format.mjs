@@ -26,6 +26,19 @@ const escAttr = (s) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
+// HTML → читаемый plain-текст для send-фолбэков. Шлётся БЕЗ parse_mode, поэтому
+// сущности ДЕКОДИРУЕМ обратно (&amp;→&, &lt;→< и т.д.) — иначе в чат уйдут литеральные
+// &amp;/&lt;. amp декодируем ПОСЛЕДНИМ, чтобы не разэкранировать дважды (&amp;lt; → &lt;).
+// NB: это НЕ sanitizeTelegramHtml — тот отдаёт безопасный HTML; здесь голый текст.
+export function htmlToPlain(html) {
+  return String(html)
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&");
+}
+
 // ── inline markdown → html ──────────────────────────────────────────────────────
 // Protect inline code first (placeholders), escape the rest, then overlay tags.
 function inlineHtml(text) {
