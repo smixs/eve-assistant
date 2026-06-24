@@ -43,7 +43,7 @@ const HELP = [
   "/task <текст> — добавить задачу",
   "/tasks — показать задачи",
   "/digest — утренний дайджест",
-  "/usage [today|week|month|by-model|by-source] — расход токенов",
+  "/usage [today|week|month|by-model|by-source] — token usage",
 ].join("\n");
 
 if (!TOKEN) {
@@ -178,7 +178,7 @@ async function handleControl(update) {
       const agg = summarize(readEntries(), { window: parseWindow(arg), now: Date.now(), tz: process.env.ASSISTANT_TIMEZONE });
       await reply(chatId, formatUsageReport(agg));
     } catch (e) {
-      await reply(chatId, "Не смог прочитать usage-лог: " + e.message);
+      await reply(chatId, "Couldn't read the usage log: " + e.message);
     }
     return true;
   }

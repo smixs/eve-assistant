@@ -133,41 +133,46 @@ export function summarize(entries, { window = "last", now = Date.now(), tz } = {
 }
 
 const WINDOW_LABEL = {
-  last: "Последний ход", today: "Сегодня", week: "За 7 дней", month: "За месяц",
-  "by-model": "По моделям", "by-source": "По источникам",
+  last: "Last turn", today: "Today", week: "Last 7 days", month: "This month",
+  "by-model": "By model", "by-source": "By source",
 };
-const SOURCE_LABEL = { telegram: "чат", http: "фон (cron/digest)", unknown: "прочее" };
-const src = (k) => SOURCE_LABEL[k] || k;
+const SOURCE_LABEL = { telegram: "chat", http: "background (cron/digest)", unknown: "other" };
+// channel.kind приходит как "channel:telegram" (канал) или "http" (eve/client) — нормализуем.
+const src = (k) => {
+  const key = String(k ?? "").replace(/^channel:/, "");
+  return SOURCE_LABEL[key] || key || "other";
+};
 const num = (n) => String(n ?? 0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+const plural = (n, w) => `${num(n)} ${w}${n === 1 ? "" : "s"}`;
 
 export function formatUsageReport(agg) {
   const w = agg.window;
   if (w === "last") {
-    if (!agg.last) return "Расхода пока нет — лог usage пуст.";
+    if (!agg.last) return "No usage logged yet.";
     const l = agg.last;
-    const sub = l.subagent ? ` (+субагент ${l.subagent})` : "";
+    const sub = l.subagent ? ` (+subagent ${l.subagent})` : "";
     return [
-      `Последний ход: ${num(l.total)} ток${sub}`,
-      `вход ${num(l.in)} · выход ${num(l.out)}${l.cacheRead ? ` · из кэша ${num(l.cacheRead)}` : ""}`,
-      `${num(l.steps)} шаг(ов) · ${l.model} · ${src(l.source)}`,
+      `Last turn: ${num(l.total)} tokens${sub}`,
+      `in ${num(l.in)} · out ${num(l.out)}${l.cacheRead ? ` · cached ${num(l.cacheRead)}` : ""}`,
+      `${plural(l.steps, "step")} · ${l.model} · ${src(l.source)}`,
     ].join("\n");
   }
   if (w === "by-model" || w === "by-source") {
-    if (!agg.rows.length) return "Расхода пока нет — лог usage пуст.";
+    if (!agg.rows.length) return "No usage logged yet.";
     const lines = agg.rows.map(
-      (r) => `• ${w === "by-source" ? src(r.key) : r.key}: ${num(r.total)} ток (${num(r.turns)} ход.)`,
+      (r) => `• ${w === "by-source" ? src(r.key) : r.key}: ${num(r.total)} tokens (${plural(r.turns, "turn")})`,
     );
-    return [`${WINDOW_LABEL[w]} (всего ${num(agg.totals.total)} ток):`, ...lines].join("\n");
+    return [`${WINDOW_LABEL[w]} (total ${num(agg.totals.total)} tokens):`, ...lines].join("\n");
   }
   const t = agg.totals;
-  if (!t.steps) return `${WINDOW_LABEL[w]}: расхода нет.`;
-  const out = [`${WINDOW_LABEL[w]}: ${num(t.total)} ток (вход ${num(t.in)} / выход ${num(t.out)}) · ${num(t.turns)} ход.`];
+  if (!t.steps) return `${WINDOW_LABEL[w]}: no usage.`;
+  const out = [`${WINDOW_LABEL[w]}: ${num(t.total)} tokens (in ${num(t.in)} / out ${num(t.out)}) · ${plural(t.turns, "turn")}`];
   if (agg.bySource.length > 1) {
-    out.push("Источники:");
+    out.push("Sources:");
     for (const r of agg.bySource) out.push(`• ${src(r.key)}: ${num(r.total)}`);
   }
   if (agg.byModel.length > 1) {
-    out.push("Модели:");
+    out.push("Models:");
     for (const r of agg.byModel) out.push(`• ${r.key}: ${num(r.total)}`);
   }
   return out.join("\n");
