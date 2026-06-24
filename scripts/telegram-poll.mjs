@@ -13,6 +13,7 @@ import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readEntries, summarize, formatUsageReport, parseWindow } from "./lib/usage.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const WORKFLOW_DIR = join(ROOT, ".workflow-data");
@@ -42,6 +43,7 @@ const HELP = [
   "/task <текст> — добавить задачу",
   "/tasks — показать задачи",
   "/digest — утренний дайджест",
+  "/usage [today|week|month|by-model|by-source] — расход токенов",
 ].join("\n");
 
 if (!TOKEN) {
@@ -161,12 +163,23 @@ async function handleControl(update) {
   const text = (msg?.text || "").trim();
   if (!text.startsWith("/")) return false;
   const cmd = text.split(/\s+/)[0].replace(/@\w+$/, "").toLowerCase();
-  if (!["/help", "/restart", "/new", "/clear", "/compact"].includes(cmd)) return false;
+  if (!["/help", "/usage", "/restart", "/new", "/clear", "/compact"].includes(cmd)) return false;
   const from = String(msg?.from?.id ?? "");
   if (ALLOWED.size === 0 || !ALLOWED.has(from)) return false; // не доверенный — пусть eve дропнет
   const chatId = msg?.chat?.id;
   if (cmd === "/help") {
     await reply(chatId, HELP);
+    return true;
+  }
+  // /usage — расход токенов из data/usage.jsonl. Out-of-band и БЕСПЛАТНО (модель не зовём).
+  if (cmd === "/usage") {
+    const arg = text.split(/\s+/).slice(1).join(" ");
+    try {
+      const agg = summarize(readEntries(), { window: parseWindow(arg), now: Date.now(), tz: process.env.ASSISTANT_TIMEZONE });
+      await reply(chatId, formatUsageReport(agg));
+    } catch (e) {
+      await reply(chatId, "Не смог прочитать usage-лог: " + e.message);
+    }
     return true;
   }
   // /restart, /new, /clear, /compact → перезапуск процесса (надёжный сброс/recovery).
