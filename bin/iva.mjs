@@ -358,6 +358,26 @@ function cmdRestart() {
   restartServices(); // регенерим юнит перед рестартом → PORT синхронен с IVA_PORT в .env
   ok("Перезапущено: iva + telegram-poll");
 }
+// Полный сброс: гасим сервисы, чистим .workflow-data, поднимаем заново. Простой restart
+// НЕ спасает от зависшего/раздутого хода — eve на старте ре-энкьюит все pending/running
+// раны из .workflow-data («Re-enqueued N active run(s) on startup»). Чистим, пока сервер
+// остановлен (иначе удалим файлы из-под живого процесса). Стирает ВСЕ запаркованные диалоги.
+function cmdReset() {
+  requireSystemd();
+  step("Полный сброс: останавливаю сервисы…");
+  sc("stop", ...SERVICES);
+  const wf = join(ROOT, ".workflow-data");
+  if (existsSync(wf)) {
+    try {
+      rmSync(wf, { recursive: true, force: true });
+      ok(".workflow-data очищен — зависшие/накопленные workflow-ходы сброшены");
+    } catch (e) {
+      warn(`не удалось удалить .workflow-data: ${e.message}`);
+    }
+  } else ok(".workflow-data уже пуст");
+  restartServices();
+  ok("Перезапущено: iva + telegram-poll");
+}
 function cmdStart() {
   requireSystemd();
   enableUnits();
@@ -425,6 +445,7 @@ ${C.b}Команды:${C.x}
   ${C.c}iva doctor${C.x}         диагностика и безопасная авто-починка установки
   ${C.c}iva status${C.x}         статус сервисов и таймеров памяти
   ${C.c}iva restart${C.x}        перезапустить агента и Telegram-мост
+  ${C.c}iva reset${C.x}          полный сброс: очистить зависшие workflow и перезапустить
   ${C.c}iva start${C.x} / ${C.c}stop${C.x}    запустить / остановить
   ${C.c}iva logs${C.x} [poll]     логи агента (или Telegram-моста) -f
   ${C.c}iva uninstall${C.x}       снять юниты и команду (--purge — удалить код+vault)
@@ -442,6 +463,7 @@ const cmds = {
   doctor: cmdDoctor,
   status: cmdStatus,
   restart: cmdRestart,
+  reset: cmdReset,
   start: cmdStart,
   stop: cmdStop,
   logs: cmdLogs,

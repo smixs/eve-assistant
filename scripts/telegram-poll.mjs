@@ -8,10 +8,14 @@
 // поэтому сами забираем апдейты у Telegram (getUpdates, long-poll) и POST-им их в
 // локальный роут eve с тем же секретом — Telegram видит обычного бота, прокси не нужен.
 // Канал/агент не меняются. Webhook и polling взаимоисключающи → на старте deleteWebhook.
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const WORKFLOW_DIR = join(ROOT, ".workflow-data");
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const SECRET = process.env.TELEGRAM_WEBHOOK_SECRET_TOKEN;
@@ -132,10 +136,22 @@ async function reply(chatId, text) {
   }
 }
 
-function restartAgent() {
-  return new Promise((resolve) => {
-    execFile("systemctl", ["--user", "restart", "iva.service"], (err) => resolve(!err));
-  });
+const sc = (...args) =>
+  new Promise((resolve) => execFile("systemctl", ["--user", ...args], (err) => resolve(!err)));
+
+// Команды восстановления (/restart, /new, /clear, /compact) = «сбрось и подними».
+// Простой restart не спасает: eve на старте РЕ-ЭНКЬЮИТ все pending/running раны из
+// .workflow-data, поэтому зависший/раздутый ход возвращается. Гасим сервер, чистим
+// .workflow-data (пока процесс остановлен — не из-под живого), поднимаем. Стирает ВСЕ
+// запаркованные диалоги — для одно-пользовательского ассистента это и есть «начать заново».
+async function restartAgent() {
+  await sc("stop", "iva.service");
+  try {
+    await rm(WORKFLOW_DIR, { recursive: true, force: true });
+  } catch (e) {
+    log("reset: не удалось очистить .workflow-data:", e.message);
+  }
+  return sc("start", "iva.service");
 }
 
 // Управляющие команды обрабатываются МОСТОМ (out-of-band) — работают, даже если агент завис.
