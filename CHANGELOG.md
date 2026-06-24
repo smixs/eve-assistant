@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.4] - 2026-06-24
+
+Patch: model switching no longer mutes the bot, and a real reset for stuck background work.
+
+- 🔇 **Reconfigure no longer mutes the bot** — running `iva config` while Iva is up used to see Iva's own port as "busy" and move it (`8723 → 8724`), but `ASSISTANT_HOST` stayed on the old port. The poll bridge then talked to a port nobody listened on and the bot went silent. Now the current port is kept (it's Iva itself), and `ASSISTANT_HOST` always follows `IVA_PORT` for local setups — the server and its clients can't drift apart.
+- ♻️ **`iva reset` and a real `/restart`** — a stuck or bloated turn lived in `.workflow-data`, which eve re-enqueues on every startup, so `iva restart` (and even a reboot) brought it right back. New `iva reset` stops the services, clears `.workflow-data`, and restarts; the Telegram `/restart` `/new` `/clear` `/compact` commands now do the same. This is the "reset that finally sticks."
+- 🧠 **Honest about reminders** — Iva no longer improvises background `nohup sleep`/`curl` timers (the thing that ballooned `.workflow-data` and pegged the CPU). It has no push/scheduler, says so plainly, and stores "remind me later" requests as tasks instead.
+- 📝 **Correct way to switch models** — the model is read from `.env` at process start, so a chat-time change applies only after `iva restart`; Iva now explains this instead of silently self-restarting mid-turn.
+
+[0.1.4]: https://github.com/smixs/iva/releases/tag/v0.1.4
+
 ## [0.1.3] - 2026-06-22
 
 Patch: Telegram formatting, an English-first installer, low-end VPS support, and the OpenCode model fix.
