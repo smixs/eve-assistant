@@ -15,8 +15,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ENV_PATH = join(ROOT, ".env");
 const OLLAMA_BASE = "https://ollama.com/v1";
 const OPENCODE_BASE = "https://opencode.ai/zen/go/v1";
-// OpenCode Go models — bare ID без префикса "opencode-go/": именно его ждёт
-// эндпоинт /v1 в теле запроса (с префиксом отвечает "Model ... is not supported").
+// OpenCode Go models — bare ID without the "opencode-go/" prefix: that's exactly what the
+// /v1 endpoint expects in the request body (with the prefix it answers "Model ... is not supported").
 const OPENCODE_MODELS = [
   "deepseek-v4-pro",
   "deepseek-v4-flash",
@@ -60,10 +60,10 @@ async function pickPort(def) {
     }
     const { occupied, holders } = await checker.check(port);
     if (!occupied) return String(port);
-    // Перенастройка при живом Iva: текущий (неизменённый) порт читается как «занят» —
-    // его держит СОБСТВЕННЫЙ сервер Iva. Не предлагаем переезд: это увело бы IVA_PORT от
-    // клиентов (мост/cron на ASSISTANT_HOST) → бот бы онемел. Оставляем порт как есть.
-    // ponytail: допускаем, что держатель неизменённого порта — наш сервер (типовой кейс).
+    // Reconfiguring a live Iva: the current (unchanged) port reads as "busy" —
+    // it's held by Iva's OWN server. Don't offer to move: that would steer IVA_PORT away from
+    // clients (bridge/cron on ASSISTANT_HOST) → the bot would go mute. Keep the port as is.
+    // ponytail: assume the holder of an unchanged port is our own server (the typical case).
     if (port === Number(def)) {
       console.log(`  ${C.y}${t(`Port ${port} is busy — looks like Iva itself (the running server). Keeping it.`, `Порт ${port} занят — похоже, это сам Iva (текущий сервер). Оставляю.`)}${C.x}`);
       return String(port);
@@ -218,8 +218,8 @@ async function main() {
   const out = { ...existing };
 
   // ── Language: UI + agent's default reply language ─────────────────
-  // install.sh спрашивает язык ПЕРВЫМ и прокидывает через окружение (AGENT_LANGUAGE) —
-  // тогда не спрашиваем повторно. При самостоятельном `npm run setup` env пуст → спросим.
+  // install.sh asks for the language FIRST and passes it through the environment (AGENT_LANGUAGE) —
+  // in that case don't ask again. On a standalone `npm run setup` the env is empty → we ask.
   const envLang = (process.env.AGENT_LANGUAGE || "").toLowerCase();
   if (envLang === "en" || envLang === "ru") {
     LANG = envLang;
@@ -295,7 +295,7 @@ async function main() {
       validate: opencodeCheck,
     });
     console.log(`\n  ${t("OpenCode Go models:", "Модели OpenCode Go:")}`);
-    // Срезаем устаревший префикс из старых .env, чтобы текущая модель предвыбралась из bare-списка.
+    // Strip the stale prefix from older .env files so the current model pre-selects from the bare list.
     const curModel = (out.OPENCODE_MODEL || "").replace(/^opencode-go\//, "");
     out.OPENCODE_MODEL = await pickFromList(OPENCODE_MODELS, curModel, OPENCODE_MODELS[0]);
     out.OPENCODE_CONTEXT_WINDOW = out.OPENCODE_CONTEXT_WINDOW || "131072";
@@ -417,9 +417,9 @@ async function main() {
   // listens on IVA_PORT and clients (poll bridge, digest, rollups) reach it via ASSISTANT_HOST. We check
   // the chosen port is free — otherwise the server would die with EADDRINUSE (silent exit → bot is mute).
   out.IVA_PORT = await pickPort(out.IVA_PORT || "8723");
-  // ASSISTANT_HOST для локалхоста ОБЯЗАН следовать за IVA_PORT: иначе смена порта здесь
-  // оставит мост/cron-клиентов на старом порту (сервер переехал, клиенты — нет) → бот
-  // немеет. Кастомный не-localhost host (удалённый сервер) сохраняем как есть.
+  // For localhost, ASSISTANT_HOST MUST follow IVA_PORT: otherwise changing the port here
+  // leaves bridge/cron clients on the old port (server moved, clients didn't) → the bot goes
+  // mute. A custom non-localhost host (remote server) is kept as is.
   const localHost = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/i.test(out.ASSISTANT_HOST || "");
   out.ASSISTANT_HOST = !out.ASSISTANT_HOST || localHost ? `http://127.0.0.1:${out.IVA_PORT}` : out.ASSISTANT_HOST;
 

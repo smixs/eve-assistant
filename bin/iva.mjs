@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Iva CLI — управление self-host инсталляцией: update / config / doctor / uninstall + обёртки.
-// Самодостаточный, без внешних зависимостей. Node 24+ (global fetch, spawnSync).
+// Iva CLI — manage the self-host installation: update / config / doctor / uninstall + wrappers.
+// Self-contained, no external dependencies. Node 24+ (global fetch, spawnSync).
 //
-// ЕДИНЫЙ источник правды для systemd-юнитов (writeUnits): install.sh делегирует сюда
-// (`iva _install-units`), а update/doctor переиспользуют ту же запись.
+// SINGLE source of truth for systemd units (writeUnits): install.sh delegates here
+// (`iva _install-units`), and update/doctor reuse the same write.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -17,16 +17,16 @@ const UNIT_DIR = join(homedir(), ".config/systemd/user");
 const NODE = process.execPath;
 const NODE_BIN_DIR = dirname(NODE);
 const NPM = existsSync(join(NODE_BIN_DIR, "npm")) ? join(NODE_BIN_DIR, "npm") : "npm";
-// Дети наследуют PATH с каталогом node — иначе npm/eve не найдутся при вызове через wrapper.
+// Children inherit PATH with the node directory — otherwise npm/eve won't be found when called via wrapper.
 const childEnv = { ...process.env, PATH: `${NODE_BIN_DIR}:${process.env.PATH || ""}` };
 
 const SERVICES = ["iva.service", "iva-telegram-poll.service"];
 const TIMERS = ["daily", "weekly", "monthly", "yearly", "doctor"].map((n) => `iva-memory-${n}.timer`);
 
-// Непопсовый порт по умолчанию: 3000/8000/8080 на типовом VPS заняты (docker и т.п.).
-// Переопределяется переменной IVA_PORT в .env; от него же зависит дефолтный ASSISTANT_HOST.
+// Uncommon default port: 3000/8000/8080 are typically taken on a VPS (docker, etc.).
+// Overridden by the IVA_PORT variable in .env; the default ASSISTANT_HOST depends on it too.
 const DEFAULT_PORT = "8723";
-// Прежний (зашитый) дефолт до перехода на IVA_PORT — нужен для миграции старых .env.
+// Former (hardcoded) default before the switch to IVA_PORT — needed to migrate old .env files.
 const OLD_DEFAULT_HOST = "http://127.0.0.1:3000";
 
 const C = { g: "\x1b[32m", y: "\x1b[33m", r: "\x1b[31m", c: "\x1b[36m", b: "\x1b[1m", d: "\x1b[2m", x: "\x1b[0m" };
@@ -35,7 +35,7 @@ const warn = (m) => console.log(`${C.y}!${C.x} ${m}`);
 const bad = (m) => console.log(`${C.r}✗${C.x} ${m}`);
 const step = (m) => console.log(`${C.b}${C.c}▸ ${m}${C.x}`);
 
-// ── мелкие хелперы ────────────────────────────────────────────────────────
+// ── small helpers ────────────────────────────────────────────────────────
 function run(cmd, args, opts = {}) {
   return spawnSync(cmd, args, { cwd: ROOT, stdio: "inherit", env: childEnv, ...opts });
 }
@@ -68,7 +68,7 @@ async function confirm(question, def = false) {
 
 function requireSystemd() {
   if (!hasSystemd()) {
-    bad("systemd недоступен — эта команда работает только на Linux-сервере");
+    bad("systemd unavailable — this command only works on a Linux server");
     process.exit(1);
   }
 }
@@ -87,9 +87,9 @@ async function notifyTelegram(text) {
   } catch {}
 }
 
-// ── systemd-юниты: единый источник правды ─────────────────────────────────
+// ── systemd units: single source of truth ─────────────────────────────────
 function ivaServiceBody() {
-  // Идентично install.sh §9: PATH с каталогом node (= npm global bin при nvm), Restart=always.
+  // Identical to install.sh §9: PATH with the node directory (= npm global bin under nvm), Restart=always.
   const port = (readEnv().IVA_PORT || DEFAULT_PORT).trim();
   return [
     "[Unit]",
@@ -111,7 +111,7 @@ function ivaServiceBody() {
   ].join("\n");
 }
 
-// Пишет iva.service + все deploy/iva-*.{service,timer} с подстановкой плейсхолдеров. daemon-reload.
+// Writes iva.service + all deploy/iva-*.{service,timer} with placeholder substitution. daemon-reload.
 function writeUnits() {
   mkdirSync(UNIT_DIR, { recursive: true });
   writeFileSync(join(UNIT_DIR, "iva.service"), ivaServiceBody());
@@ -148,41 +148,41 @@ function removeUnits() {
   return units;
 }
 
-// Миграция старых установок на IVA_PORT. Идемпотентна: при первом `iva update`
-// после перехода на новую схему гарантирует переменную и не даёт серверу
-// (Environment=PORT=$IVA_PORT) разъехаться с клиентами (их дефолт — ASSISTANT_HOST).
+// Migrate old installs to IVA_PORT. Idempotent: on the first `iva update`
+// after switching to the new scheme it guarantees the variable and keeps the server
+// (Environment=PORT=$IVA_PORT) from drifting away from clients (whose default is ASSISTANT_HOST).
 function migrateEnv() {
   if (!existsSync(ENV_PATH)) return false;
   const env = readEnv();
-  if (env.IVA_PORT) return false; // уже на новой схеме — ничего не трогаем
+  if (env.IVA_PORT) return false; // already on the new scheme — leave it alone
   const host = env.ASSISTANT_HOST || "";
   const local = host.match(/^https?:\/\/(?:127\.0\.0\.1|localhost):(\d+)\/?$/i);
   const isOldDefault = host === OLD_DEFAULT_HOST;
-  // старый дефолт :3000 → новый дефолт 8723; кастомный локальный host → его порт; иначе дефолт
+  // old default :3000 → new default 8723; custom local host → its port; otherwise the default
   const port = isOldDefault ? DEFAULT_PORT : local ? local[1] : DEFAULT_PORT;
   let raw = readFileSync(ENV_PATH, "utf8").replace(/\n*$/, "\n") + `IVA_PORT=${port}\n`;
-  // не оставляем устаревший :3000 в ASSISTANT_HOST — иначе клиенты застрянут на занятом порту
+  // don't leave a stale :3000 in ASSISTANT_HOST — otherwise clients get stuck on the taken port
   if (isOldDefault) raw = raw.replace(/^(\s*ASSISTANT_HOST\s*=).*$/m, `$1http://127.0.0.1:${port}`);
   writeFileSync(ENV_PATH, raw);
-  ok(`.env мигрирован → IVA_PORT=${port}${isOldDefault ? ", ASSISTANT_HOST уведён с :3000" : ""}`);
+  ok(`.env migrated → IVA_PORT=${port}${isOldDefault ? ", ASSISTANT_HOST moved off :3000" : ""}`);
   return true;
 }
 
-// Любой рестарт через `iva` сперва регенерит юнит → Environment=PORT всегда равен
-// текущему IVA_PORT из .env. Без этого правка IVA_PORT + restart оставляла бы сервер
-// на старом порту (юнит уже запечён), а клиенты читали бы новый — тот же рассинхрон.
+// Any restart via `iva` first regenerates the unit → Environment=PORT always equals
+// the current IVA_PORT from .env. Without this, editing IVA_PORT + restart would leave the server
+// on the old port (the unit was already baked) while clients read the new one — the same desync.
 function restartServices() {
   writeUnits();
   sc("restart", ...SERVICES);
 }
 
-// ANSI-дерево как при установке. Единственный источник арта — install.sh (heredoc
-// IVA_TREE), читаем его оттуда, чтобы не плодить копию. В реальном терминале даём
-// лёгкую «жизнь»: крона качается на ветру, цвета переливаются, глифы чуть дышат.
-// Не-TTY / узкое окно / IVA_NO_ANIM / любой сбой — статичный кадр (или ничего).
-const TREE_RAMP = " .:;!icoa*xw#%$&@"; // тот же набор, что у генератора арта
+// ANSI tree like during install. The only source of the art is install.sh (heredoc
+// IVA_TREE); we read it from there so as not to spawn a copy. In a real terminal we add
+// a little "life": the crown sways in the wind, colors shimmer, glyphs breathe slightly.
+// Non-TTY / narrow window / IVA_NO_ANIM / any failure — a static frame (or nothing).
+const TREE_RAMP = " .:;!icoa*xw#%$&@"; // the same set as the art generator
 
-// Разбираем heredoc в сетку ячеек: {ch,r,g,b} для цветного глифа, {ch:" ",bg} для фона.
+// Parse the heredoc into a grid of cells: {ch,r,g,b} for a colored glyph, {ch:" ",bg} for background.
 function loadTreeGrid() {
   const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
   const body = sh.split("<<'IVA_TREE'\n")[1]?.split("\nIVA_TREE")[0];
@@ -203,7 +203,7 @@ function loadTreeGrid() {
 const clampByte = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
-// Один кадр. live=false → опорный (без качания/переливов) для финального покоя.
+// One frame. live=false → reference (no sway/shimmer) for the final resting state.
 function renderTreeFrame(grid, t, live) {
   const rows = grid.length;
   let out = "";
@@ -213,18 +213,18 @@ function renderTreeFrame(grid, t, live) {
     while (lead < cells.length && cells[lead].bg) lead++;
     let last = cells.length - 1;
     while (last >= 0 && cells[last].bg) last--;
-    // дерево стоит неподвижно — оживают только глифы и их цвета
+    // the tree stays still — only the glyphs and their colors come alive
     let line = " ".repeat(lead);
     for (let x = lead; x <= last; x++) {
       const c = cells[x];
       if (c.bg) { line += " "; continue; }
       let { r, g, b, ch } = c;
       if (live) {
-        const shim = 1 + 0.16 * Math.sin(t * 0.6 + x * 0.45 + y * 0.3); // перелив яркости
+        const shim = 1 + 0.16 * Math.sin(t * 0.6 + x * 0.45 + y * 0.3); // brightness shimmer
         r = clampByte(Math.round(r * shim));
         g = clampByte(Math.round(g * shim));
         b = clampByte(Math.round(b * shim));
-        const idx = TREE_RAMP.indexOf(ch); // дыхание глифа на ±1 по рампе (не в фон)
+        const idx = TREE_RAMP.indexOf(ch); // glyph breathes ±1 along the ramp (not into background)
         if (idx > 0) ch = TREE_RAMP[clamp(idx + Math.round(0.9 * Math.sin(t * 0.5 + x * 0.7 + y * 1.1)), 1, TREE_RAMP.length - 1)];
       }
       line += `\x1b[38;2;${r};${g};${b}m${ch}`;
@@ -242,12 +242,12 @@ async function showTree() {
     const rows = grid.length;
     const width = Math.max(...grid.map((r) => r.length)) + 3;
     process.stdout.write("\n");
-    // узкое окно ломает перерисовку курсором — показываем статично
+    // a narrow window breaks cursor-based redraw — show it statically
     if ((process.stdout.columns || 80) < width || process.env.IVA_NO_ANIM) {
       process.stdout.write(renderTreeFrame(grid, 0, false) + "\n");
       return;
     }
-    process.stdout.write("\x1b[?25l"); // прячем курсор
+    process.stdout.write("\x1b[?25l"); // hide the cursor
     const FRAMES = 36, DELAY = 70;
     for (let f = 0; f < FRAMES; f++) {
       if (f > 0) process.stdout.write(`\x1b[${rows}A`);
@@ -256,59 +256,59 @@ async function showTree() {
     }
     process.stdout.write(`\x1b[${rows}A` + renderTreeFrame(grid, 0, false) + "\x1b[?25h\n");
   } catch {
-    process.stdout.write("\x1b[?25h"); // на всякий — вернуть курсор
+    process.stdout.write("\x1b[?25h"); // just in case — restore the cursor
   }
 }
 
-// ── команды ───────────────────────────────────────────────────────────────
+// ── commands ───────────────────────────────────────────────────────────────
 async function cmdUpdate(args) {
   const force = args.includes("--force");
   await showTree();
-  step("Обновляю Iva…");
+  step("Updating Iva…");
   const before = gitHead();
   const pull = cap("git", ["pull", "--ff-only"]);
   console.log([pull.out, pull.err].filter(Boolean).join("\n"));
   if (pull.code !== 0) {
-    bad("git pull не удался — разрули вручную (git status), затем повтори");
+    bad("git pull failed — resolve manually (git status), then retry");
     process.exit(1);
   }
   const after = gitHead();
   const changed = before !== after;
   if (!changed && !force) {
-    ok(`Уже актуально (${after}). Нечего пересобирать (--force чтобы форсить).`);
+    ok(`Already up to date (${after}). Nothing to rebuild (--force to force it).`);
     return;
   }
   if (changed) {
     const files = cap("git", ["diff", "--name-only", `${before}..${after}`]).out.split("\n");
     if (files.includes("package-lock.json") || files.includes("package.json")) {
       const hasLock = existsSync(join(ROOT, "package-lock.json"));
-      step(`Зависимости изменились — npm ${hasLock ? "ci" : "install"}…`);
+      step(`Dependencies changed — npm ${hasLock ? "ci" : "install"}…`);
       run(NPM, [hasLock ? "ci" : "install"]);
     }
   }
-  migrateEnv(); // старые .env: добавить IVA_PORT и увести с занятого :3000 (до сборки/рестарта)
-  step("Сборка (eve build)…");
+  migrateEnv(); // old .env: add IVA_PORT and move off the taken :3000 (before build/restart)
+  step("Building (eve build)…");
   if (run(NPM, ["run", "build"]).status !== 0) {
-    bad("Сборка упала — сервис НЕ перезапускаю (старая сборка осталась рабочей)");
+    bad("Build failed — NOT restarting the service (the old build stays working)");
     process.exit(1);
   }
   if (hasSystemd()) {
-    step("Рефреш systemd-юнитов и перезапуск…");
+    step("Refreshing systemd units and restarting…");
     restartServices();
-    ok("Перезапущено: iva + telegram-poll");
+    ok("Restarted: iva + telegram-poll");
   } else {
-    warn("systemd недоступен — перезапустите процесс вручную");
+    warn("systemd unavailable — restart the process manually");
   }
-  ok(`Готово: ${before} → ${after}`);
-  await notifyTelegram(`✅ Iva обновлена: ${before} → ${after}`);
+  ok(`Done: ${before} → ${after}`);
+  await notifyTelegram(`✅ Iva updated: ${before} → ${after}`);
 }
 
 async function cmdConfig() {
   const r = run(NODE, ["scripts/setup.mjs"]);
   if (r.status !== 0) process.exit(r.status ?? 1);
-  if (hasSystemd() && (await confirm("Перезапустить сервисы, чтобы применить настройки?", true))) {
-    restartServices(); // setup мог сменить IVA_PORT → регенерим юнит, иначе сервер останется на старом порту
-    ok("Сервисы перезапущены");
+  if (hasSystemd() && (await confirm("Restart services to apply the settings?", true))) {
+    restartServices(); // setup may have changed IVA_PORT → regenerate the unit, otherwise the server stays on the old port
+    ok("Services restarted");
   }
 }
 
@@ -322,10 +322,10 @@ function cmdDoctor() {
   // 1. Node ≥24
   const major = parseInt(process.versions.node.split(".")[0], 10);
   if (major >= 24) (ok(`Node ${process.versions.node}`), okN++);
-  else (bad(`Node ${process.versions.node} < 24 — обнови: nvm install 24`), badN++);
+  else (bad(`Node ${process.versions.node} < 24 — upgrade: nvm install 24`), badN++);
 
-  // 2. .env + обязательные ключи (та же логика REQUIRED, что в scripts/setup.mjs)
-  if (!existsSync(ENV_PATH)) (bad(".env отсутствует — запустите: iva config"), badN++);
+  // 2. .env + required keys (the same REQUIRED logic as in scripts/setup.mjs)
+  if (!existsSync(ENV_PATH)) (bad(".env missing — run: iva config"), badN++);
   else {
     const prov = env.MODEL_PROVIDER || "ollama";
     const REQUIRED = [
@@ -336,74 +336,74 @@ function cmdDoctor() {
       "TELEGRAM_ALLOWED_USER_IDS",
     ];
     const missing = REQUIRED.filter((k) => !(env[k] || "").trim());
-    if (!missing.length) (ok(`.env заполнен (провайдер: ${prov})`), okN++);
-    else (bad(`.env неполный, нет: ${missing.join(", ")} — запустите: iva config`), badN++);
-    // старые .env без IVA_PORT (или с :3000) — мигрируем здесь же
+    if (!missing.length) (ok(`.env filled in (provider: ${prov})`), okN++);
+    else (bad(`.env incomplete, missing: ${missing.join(", ")} — run: iva config`), badN++);
+    // old .env without IVA_PORT (or with :3000) — migrate right here
     if (migrateEnv()) fixN++;
-    // веб-поиск опционален; проверяем ключ ВЫБРАННОГО провайдера (SEARCH_PROVIDER)
+    // web search is optional; check the key of the SELECTED provider (SEARCH_PROVIDER)
     const SEARCH_KEY = { tavily: "TAVILY_API_KEY", brave: "BRAVE_API_KEY", exa: "EXA_API_KEY", parallel: "PARALLEL_API_KEY" };
     const sp = (env.SEARCH_PROVIDER || "tavily").trim().toLowerCase();
     const skey = SEARCH_KEY[sp] || SEARCH_KEY.tavily;
     if (!(env[skey] || "").trim())
-      (warn(`web_search: SEARCH_PROVIDER=${sp}, но ${skey} не задан — поиск не работает (iva config)`), warnN++);
+      (warn(`web_search: SEARCH_PROVIDER=${sp}, but ${skey} is not set — search won't work (iva config)`), warnN++);
     else (ok(`web_search: ${sp}`), okN++);
   }
 
-  // 3. Сборка
-  if (existsSync(join(ROOT, ".output/server/index.mjs"))) (ok("Сборка на месте (.output)"), okN++);
+  // 3. Build
+  if (existsSync(join(ROOT, ".output/server/index.mjs"))) (ok("Build in place (.output)"), okN++);
   else {
-    warn(".output отсутствует — собираю…");
-    if (run(NPM, ["run", "build"]).status === 0) (ok("Собрано"), fixN++);
-    else (bad("Сборка не удалась"), badN++);
+    warn(".output missing — building…");
+    if (run(NPM, ["run", "build"]).status === 0) (ok("Built"), fixN++);
+    else (bad("Build failed"), badN++);
   }
 
   if (!hasSystemd()) {
-    warn("systemd недоступен (не Linux) — пропускаю проверки сервисов и таймеров");
+    warn("systemd unavailable (not Linux) — skipping service and timer checks");
     return summary();
   }
 
-  // 4. Юниты установлены
+  // 4. Units installed
   const present = existsSync(UNIT_DIR) && readdirSync(UNIT_DIR).some((f) => /^iva.*\.(service|timer)$/.test(f));
   if (!present) {
-    warn("systemd-юниты не установлены — ставлю…");
+    warn("systemd units not installed — installing…");
     writeUnits();
     enableUnits();
-    (ok("Юниты установлены и включены"), fixN++);
+    (ok("Units installed and enabled"), fixN++);
   } else {
-    writeUnits(); // рефреш: Environment=PORT синхронизируется с актуальным IVA_PORT (устраняет дрейф)
-    (ok("systemd-юниты установлены (рефреш)"), okN++);
+    writeUnits(); // refresh: Environment=PORT syncs with the current IVA_PORT (eliminates drift)
+    (ok("systemd units installed (refreshed)"), okN++);
   }
 
-  // 5. Сервисы активны
+  // 5. Services active
   for (const svc of SERVICES) {
-    if (scQ("is-active", svc).out === "active") (ok(`${svc} активен`), okN++);
+    if (scQ("is-active", svc).out === "active") (ok(`${svc} active`), okN++);
     else {
-      warn(`${svc} неактивен — перезапускаю…`);
+      warn(`${svc} inactive — restarting…`);
       scQ("reset-failed", svc);
       sc("restart", svc);
-      if (scQ("is-active", svc).out === "active") (ok(`${svc} поднят`), fixN++);
-      else (bad(`${svc} не стартует — journalctl --user -u ${svc} -e`), badN++);
+      if (scQ("is-active", svc).out === "active") (ok(`${svc} brought up`), fixN++);
+      else (bad(`${svc} won't start — journalctl --user -u ${svc} -e`), badN++);
     }
   }
-  // Таймеры памяти включены
+  // Memory timers enabled
   for (const t of TIMERS) {
     if (scQ("is-enabled", t).out === "enabled") okN++;
     else {
-      warn(`${t} выключен — включаю…`);
+      warn(`${t} disabled — enabling…`);
       sc("enable", "--now", t);
       fixN++;
     }
   }
-  ok(`Таймеры памяти проверены (${TIMERS.length})`);
+  ok(`Memory timers checked (${TIMERS.length})`);
 
-  // 6. Vault + git origin (только репорт — git-операции не инициируем)
+  // 6. Vault + git origin (report only — we don't initiate git operations)
   const vaultRel = env.ASSISTANT_VAULT_DIR || "vault";
   const vaultPath = vaultRel.startsWith("/") ? vaultRel : join(ROOT, vaultRel);
-  if (!existsSync(vaultPath)) (warn(`vault не найден (${vaultPath}) — создастся при памяти или: npm run init-vault`), warnN++);
+  if (!existsSync(vaultPath)) (warn(`vault not found (${vaultPath}) — created on first memory or: npm run init-vault`), warnN++);
   else if (cap("git", ["-C", vaultPath, "remote", "get-url", "origin"]).out) (ok(`vault + git origin`), okN++);
   else
     (warn(
-      `vault без git origin — бэкап памяти не настроен:\n    gh repo create <user>/iva-vault --private --source="${vaultPath}" --remote=origin --push`,
+      `vault without git origin — memory backup not configured:\n    gh repo create <user>/iva-vault --private --source="${vaultPath}" --remote=origin --push`,
     ),
     warnN++);
 
@@ -412,7 +412,7 @@ function cmdDoctor() {
   function summary() {
     console.log();
     console.log(
-      `${C.b}Итог:${C.x} ${C.g}${okN} ok${C.x} · ${C.y}${warnN} warn${C.x} · ${C.c}${fixN} fixed${C.x} · ${C.r}${badN} fail${C.x}`,
+      `${C.b}Summary:${C.x} ${C.g}${okN} ok${C.x} · ${C.y}${warnN} warn${C.x} · ${C.c}${fixN} fixed${C.x} · ${C.r}${badN} fail${C.x}`,
     );
     process.exit(badN > 0 ? 1 : 0);
   }
@@ -425,38 +425,38 @@ function cmdStatus() {
 }
 function cmdRestart() {
   requireSystemd();
-  restartServices(); // регенерим юнит перед рестартом → PORT синхронен с IVA_PORT в .env
-  ok("Перезапущено: iva + telegram-poll");
+  restartServices(); // regenerate the unit before restart → PORT stays in sync with IVA_PORT in .env
+  ok("Restarted: iva + telegram-poll");
 }
-// Полный сброс: гасим сервисы, чистим .workflow-data, поднимаем заново. Простой restart
-// НЕ спасает от зависшего/раздутого хода — eve на старте ре-энкьюит все pending/running
-// раны из .workflow-data («Re-enqueued N active run(s) on startup»). Чистим, пока сервер
-// остановлен (иначе удалим файлы из-под живого процесса). Стирает ВСЕ запаркованные диалоги.
+// Full reset: stop services, wipe .workflow-data, bring it back up. A plain restart
+// does NOT cure a stuck/bloated run — on startup eve re-enqueues all pending/running
+// runs from .workflow-data ("Re-enqueued N active run(s) on startup"). We clean while the server
+// is stopped (otherwise we'd delete files out from under a live process). Wipes ALL parked dialogs.
 function cmdReset() {
   requireSystemd();
-  step("Полный сброс: останавливаю сервисы…");
+  step("Full reset: stopping services…");
   sc("stop", ...SERVICES);
   const wf = join(ROOT, ".workflow-data");
   if (existsSync(wf)) {
     try {
       rmSync(wf, { recursive: true, force: true });
-      ok(".workflow-data очищен — зависшие/накопленные workflow-ходы сброшены");
+      ok(".workflow-data cleared — stuck/accumulated workflow runs reset");
     } catch (e) {
-      warn(`не удалось удалить .workflow-data: ${e.message}`);
+      warn(`failed to delete .workflow-data: ${e.message}`);
     }
-  } else ok(".workflow-data уже пуст");
+  } else ok(".workflow-data already empty");
   restartServices();
-  ok("Перезапущено: iva + telegram-poll");
+  ok("Restarted: iva + telegram-poll");
 }
 function cmdStart() {
   requireSystemd();
   enableUnits();
-  ok("Запущено и включено в автозапуск");
+  ok("Started and enabled at boot");
 }
 function cmdStop() {
   requireSystemd();
   sc("stop", ...SERVICES);
-  ok("Остановлено");
+  ok("Stopped");
 }
 function cmdLogs(args) {
   requireSystemd();
@@ -466,33 +466,33 @@ function cmdLogs(args) {
 
 async function cmdUninstall(args) {
   const purge = args.includes("--purge");
-  warn("Удаление Iva: systemd-юниты и команда `iva` будут сняты.");
-  if (purge) bad("--purge также УДАЛИТ код проекта и vault (отдельный git-репо с памятью!).");
-  if (!(await confirm("Продолжить?", false))) return console.log("Отменено.");
+  warn("Uninstalling Iva: systemd units and the `iva` command will be removed.");
+  if (purge) bad("--purge will ALSO DELETE the project code and vault (a separate git repo with your memory!).");
+  if (!(await confirm("Continue?", false))) return console.log("Cancelled.");
 
-  if (hasSystemd()) ok(`Сняты systemd-юниты: ${removeUnits().length}`);
+  if (hasSystemd()) ok(`Removed systemd units: ${removeUnits().length}`);
   try {
     rmSync(join(homedir(), ".local/bin/iva"));
-    ok("Команда iva удалена из ~/.local/bin");
+    ok("iva command removed from ~/.local/bin");
   } catch {}
 
   if (!purge) {
-    console.log(`${C.d}Код и vault оставлены: ${ROOT}${C.x}`);
-    return ok("Готово.");
+    console.log(`${C.d}Code and vault kept: ${ROOT}${C.x}`);
+    return ok("Done.");
   }
-  if (!(await confirm(`Удалить каталог ${ROOT} И vault БЕЗВОЗВРАТНО?`, false)))
-    return console.log("Код и vault оставлены.");
+  if (!(await confirm(`Delete the ${ROOT} directory AND vault IRREVERSIBLY?`, false)))
+    return console.log("Code and vault kept.");
   const vaultRel = readEnv().ASSISTANT_VAULT_DIR || "vault";
   const vaultPath = vaultRel.startsWith("/") ? vaultRel : join(ROOT, vaultRel);
   for (const [p, label] of [
     [vaultPath, "vault"],
-    [ROOT, "код"],
+    [ROOT, "code"],
   ]) {
     try {
       rmSync(p, { recursive: true, force: true });
-      ok(`${label} удалён`);
+      ok(`${label} deleted`);
     } catch (e) {
-      warn(`не удалил ${label}: ${e.message}`);
+      warn(`did not delete ${label}: ${e.message}`);
     }
   }
 }
@@ -505,8 +505,8 @@ function cmdVersion() {
   console.log(`iva ${v} · commit ${gitHead() || "?"}`);
 }
 
-// Расход токенов из data/usage.jsonl — тот же лог, что читает Telegram-/usage. Терминальный
-// взгляд (issue #7, коммент про CLI-монитор). `tail [N]` — последние сырые строки.
+// Token usage from data/usage.jsonl — the same log that Telegram /usage reads. A terminal
+// view (issue #7, the comment about a CLI monitor). `tail [N]` — the last raw lines.
 async function cmdUsage(args) {
   const { readEntries, summarize, formatUsageReport, parseWindow } = await import("../scripts/lib/usage.mjs");
   const env = readEnv();
@@ -522,26 +522,26 @@ async function cmdUsage(args) {
 
 function cmdHelp() {
   console.log(`
-${C.b}Iva CLI${C.x} — управление личным агентом
+${C.b}Iva CLI${C.x} — manage your personal agent
 
-${C.b}Команды:${C.x}
-  ${C.c}iva update${C.x}         обновить: git pull + сборка + перезапуск
-  ${C.c}iva config${C.x}         настройка: модель, Telegram, Deepgram, TZ, vault
-  ${C.c}iva doctor${C.x}         диагностика и безопасная авто-починка установки
-  ${C.c}iva status${C.x}         статус сервисов и таймеров памяти
-  ${C.c}iva restart${C.x}        перезапустить агента и Telegram-мост
-  ${C.c}iva reset${C.x}          полный сброс: очистить зависшие workflow и перезапустить
-  ${C.c}iva start${C.x} / ${C.c}stop${C.x}    запустить / остановить
-  ${C.c}iva usage${C.x} [win]      расход токенов (last|today|week|month|by-model|by-source|tail)
-  ${C.c}iva logs${C.x} [poll]     логи агента (или Telegram-моста) -f
-  ${C.c}iva uninstall${C.x}       снять юниты и команду (--purge — удалить код+vault)
-  ${C.c}iva version${C.x}         версия и git-commit
+${C.b}Commands:${C.x}
+  ${C.c}iva update${C.x}         update: git pull + build + restart
+  ${C.c}iva config${C.x}         configure: model, Telegram, Deepgram, TZ, vault
+  ${C.c}iva doctor${C.x}         diagnose and safely auto-repair the install
+  ${C.c}iva status${C.x}         status of services and memory timers
+  ${C.c}iva restart${C.x}        restart the agent and Telegram bridge
+  ${C.c}iva reset${C.x}          full reset: clear stuck workflows and restart
+  ${C.c}iva start${C.x} / ${C.c}stop${C.x}    start / stop
+  ${C.c}iva usage${C.x} [win]      token usage (last|today|week|month|by-model|by-source|tail)
+  ${C.c}iva logs${C.x} [poll]     agent logs (or the Telegram bridge) -f
+  ${C.c}iva uninstall${C.x}       remove units and the command (--purge — delete code+vault)
+  ${C.c}iva version${C.x}         version and git commit
 
-  ${C.d}флаги: update --force — пересобрать без изменений${C.x}
+  ${C.d}flags: update --force — rebuild with no changes${C.x}
 `);
 }
 
-// ── роутер ──────────────────────────────────────────────────────────────────
+// ── router ──────────────────────────────────────────────────────────────────
 const [, , cmd, ...rest] = process.argv;
 const cmds = {
   update: cmdUpdate,
@@ -556,17 +556,17 @@ const cmds = {
   logs: cmdLogs,
   uninstall: cmdUninstall,
   version: cmdVersion,
-  tree: showTree, // проиграть ANSI-дерево (анимация ветра)
+  tree: showTree, // play the ANSI tree (wind animation)
   help: cmdHelp,
   "--help": cmdHelp,
   "-h": cmdHelp,
-  // внутренняя подкоманда — install.sh делегирует сюда запись юнитов (DRY)
-  "_install-units": () => ok(`systemd-юниты записаны: ${writeUnits().length}`),
+  // internal subcommand — install.sh delegates unit writing here (DRY)
+  "_install-units": () => ok(`systemd units written: ${writeUnits().length}`),
 };
 
 const fn = cmds[cmd];
 if (!fn) {
-  if (cmd) bad(`Неизвестная команда: ${cmd}`);
+  if (cmd) bad(`Unknown command: ${cmd}`);
   cmdHelp();
   process.exit(cmd ? 1 : 0);
 }

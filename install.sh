@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 #
-# Установка Iva (личный агент с долговременной памятью) одной командой на голом VPS:
+# Install Iva (a personal long-term-memory agent) with one command on a bare VPS:
 #
 #   curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
 #
-# Ставит системные зависимости (git, gh, python3, ffmpeg, pandoc, poppler), uv, Node 24+ (nvm),
-# npm-зависимости, проводит интерактивную настройку (Ollama + модель + Telegram +
-# Deepgram + часовой пояс + vault), собирает агента и заводит systemd user-сервис плюс
-# таймеры памяти. Live-vault инициализируется как отдельный git-репо для бэкапа.
+# Installs system dependencies (git, gh, python3, ffmpeg, pandoc, poppler), uv, Node 24+ (nvm),
+# npm dependencies, runs an interactive setup (Ollama + model + Telegram +
+# Deepgram + timezone + vault), builds the agent and sets up a systemd user service plus
+# memory timers. The live vault is initialized as a separate git repo for backup.
 #
-# Интерактивная настройка читает ввод из /dev/tty — работает и при `curl | bash`
-# (по SSH с реальным терминалом). Если терминала нет (Docker/CI), настройка пропускается,
-# и в конце печатается команда запустить её вручную (`npm run setup`).
+# The interactive setup reads input from /dev/tty — so it works with `curl | bash` too
+# (over SSH with a real terminal). If there's no terminal (Docker/CI), setup is skipped,
+# and the command to run it manually is printed at the end (`npm run setup`).
 #
-# Флаги (через `curl ... | bash -s -- <флаги>`):
-#   --skip-setup        не запускать мастер настройки (запустишь сам: npm run setup)
-#   --non-interactive   не задавать никаких вопросов (берёт дефолты; настройку пропускает)
-#   -h, --help          показать эту справку
-# Мгновенная реассурация: первый вывод сразу, чтобы не было тишины на старте.
+# Flags (via `curl ... | bash -s -- <flags>`):
+#   --skip-setup        don't run the setup wizard (run it yourself: npm run setup)
+#   --non-interactive   don't ask any questions (use defaults; skip setup)
+#   -h, --help          show this help
+# Instant reassurance: print something right away so there's no silence at startup.
 printf '\n  \033[36m⏳ Preparing environment / Идёт подготовка окружения — up to a minute, do not interrupt…\033[0m\n'
 set -Eeuo pipefail
 
@@ -32,13 +32,13 @@ ok()   { echo "${c_green}✓ $*${c_reset}"; }
 warn() { echo "${c_yellow}! $*${c_reset}"; }
 die()  { echo "${c_red}✗ $*${c_reset}" >&2; exit 1; }
 
-# Язык установщика и дефолтный язык ответов агента. Дефолт — English (глобальная аудитория);
-# спрашивается ПЕРВЫМ вопросом (pick_language ниже). t en ru — выбор строки по языку.
+# Installer language and the agent's default reply language. Default is English (global audience);
+# asked as the FIRST question (pick_language below). t en ru — picks a string by language.
 IVA_LANG=en
 t() { if [ "$IVA_LANG" = ru ]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
 
 show_tree() {
-  [ -t 1 ] || return 0   # только в реальном терминале (не в логах/CI)
+  [ -t 1 ] || return 0   # only in a real terminal (not in logs/CI)
   printf '%b' "$(cat <<'IVA_TREE'
                 \033[38;2;126;141;74mc\033[38;2;142;186;43mx\033[38;2;157;146;41ma\033[38;2;78;154;73m!\033[38;2;105;103;79mi\033[38;2;105;53;79m:\033[0m
            \033[38;2;61;177;90m;\033[38;2;84;91;111mc\033[38;2;46;77;117mi\033[38;2;25;73;134m!\033[38;2;50;158;114mi\033[38;2;109;178;62ma\033[38;2;31;143;143mc\033[38;2;116;161;70ma\033[38;2;185;151;29ma\033[38;2;135;164;52mc\033[38;2;172;114;30m*\033[38;2;177;51;35mo\033[38;2;194;55;32m. \033[38;2;178;195;26m!\033[38;2;121;179;30m!\033[0m
@@ -71,9 +71,9 @@ IVA_TREE
   echo
 }
 
-# Громкий обработчик ошибок: больше никаких молчаливых выходов из-за set -e.
-# Вынесен в функцию, чтобы временно снимать/возвращать его вокруг чужого кода
-# (nvm внутри штатно делает `return <non-zero>` — без снятия trap это ложная тревога).
+# Loud error handler: no more silent exits from set -e.
+# Pulled into a function so it can be temporarily removed/restored around foreign code
+# (nvm normally does `return <non-zero>` internally — without removing the trap that's a false alarm).
 on_err() {
   local rc=$?
   echo >&2
@@ -82,10 +82,10 @@ on_err() {
 }
 trap on_err ERR
 
-# ── Режим интерактивности (по образцу NousResearch/hermes-agent) ───────────
-# НЕ делаем `exec < /dev/tty`: при `curl | bash` bash читает САМ скрипт из stdin-пайпа,
-# и переназначение FD0 сломало бы чтение остатка. Вместо этого ввод подаём точечно
-# каждому интерактивному потребителю из /dev/tty, а наличие терминала пробуем открытием.
+# ── Interactivity mode (modeled on NousResearch/hermes-agent) ──────────────
+# Do NOT `exec < /dev/tty`: with `curl | bash`, bash reads the script ITSELF from the stdin pipe,
+# and reassigning FD0 would break reading the rest of it. Instead, feed input pointwise
+# to each interactive consumer from /dev/tty, and probe for a terminal by trying to open it.
 RUN_SETUP=true
 NON_INTERACTIVE=false
 if [ -t 0 ]; then IS_INTERACTIVE=true; else IS_INTERACTIVE=false; fi
@@ -102,10 +102,10 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# Терминал реально открывается? (в Docker-build узел /dev/tty есть, но open даёт ENXIO).
+# Does the terminal actually open? (in a Docker build the /dev/tty node exists, but open gives ENXIO).
 have_tty() { (: < /dev/tty) 2>/dev/null; }
 
-# y/n-вопрос с дефолтом; источник ввода: stdin-tty → /dev/tty → дефолт.
+# y/n question with a default; input source: stdin-tty → /dev/tty → default.
 prompt_yes_no() {
   local question="$1" default="${2:-no}" suffix answer=""
   case "$default" in [yY]*|1|true) suffix="[Y/n]" ;; *) suffix="[y/N]" ;; esac
@@ -120,9 +120,9 @@ prompt_yes_no() {
   case "$answer" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
 }
 
-# Язык — САМЫЙ ПЕРВЫЙ вопрос, до системной возни. Двуязычный промпт, дефолт English.
-# Выбор кладём в AGENT_LANGUAGE и экспортируем → его подхватят setup.mjs и init-vault.mjs,
-# поэтому язык спрашивается ровно один раз.
+# Language is the VERY FIRST question, before any system work. Bilingual prompt, default English.
+# We store the choice in AGENT_LANGUAGE and export it → setup.mjs and init-vault.mjs pick it up,
+# so the language is asked exactly once.
 pick_language() {
   local ans=""
   if [ "$NON_INTERACTIVE" != true ]; then
@@ -141,24 +141,24 @@ pick_language() {
 
 echo
 show_tree
-pick_language   # ← первый вопрос: язык (дефолт English), до любой установки
+pick_language   # ← first question: language (default English), before any install
 echo "  ${c_green}Iva${c_reset} — $(t "your personal long-term-memory agent that just works" "личный агент с долговременной памятью, который просто работает")"
 echo "  ─────────────────────────────────────────────"
 
-# root запускает напрямую; иначе через sudo (один раз кешируем пароль).
+# root runs directly; otherwise via sudo (cache the password once).
 run_root() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
 
-# ── Своп для слабых VPS ($4 DigitalOcean droplet = 512MB RAM) ─────────────
-# На низкой RAM без свопа npm install и особенно `eve build` (rolldown+nitro+node)
-# падают с OOM — ядро убивает процесс (Killed, код 137). Если RAM < ~1.5GB и свопа
-# нет — заводим swapfile на 2GB ДО тяжёлых шагов. Идемпотентно: активный своп не
-# трогаем, существующий /swapfile просто включаем, в fstab не дублируем.
+# ── Swap for weak VPSes ($4 DigitalOcean droplet = 512MB RAM) ──────────────
+# On low RAM without swap, npm install and especially `eve build` (rolldown+nitro+node)
+# fail with OOM — the kernel kills the process (Killed, code 137). If RAM < ~1.5GB and
+# there's no swap — set up a 2GB swapfile BEFORE the heavy steps. Idempotent: don't touch
+# active swap, just enable an existing /swapfile, and don't duplicate it in fstab.
 ensure_swap() {
   local ram_mb swap_mb free_mb total
   ram_mb=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 0)
   swap_mb=$(awk '/SwapTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 0)
-  [ "${ram_mb:-0}" -ge 1500 ] && return 0          # памяти достаточно
-  [ "${swap_mb:-0}" -ge 1024 ] && return 0          # своп уже есть
+  [ "${ram_mb:-0}" -ge 1500 ] && return 0          # enough memory
+  [ "${swap_mb:-0}" -ge 1024 ] && return 0          # swap already present
   step "$(t "Low RAM (${ram_mb}MB), no swap — adding a 2GB swapfile so the build won't get OOM-killed…" "Мало RAM (${ram_mb}МБ), свопа нет — добавляю swapfile 2GB, чтобы сборку не убил OOM…")"
   if [ ! -f /swapfile ]; then
     free_mb=$(df -Pm / 2>/dev/null | awk 'NR==2{print $4}')
@@ -180,9 +180,9 @@ ensure_swap() {
 ensure_swap
 
 # ─────────────────────────────────────────────────────────────────────────
-# 1. Системные зависимости. Detect-then-install.
-#    ffmpeg опционален (nova-3 обычно принимает видео напрямую); pandoc/poppler —
-#    извлечение текста из присланных docx/pdf.
+# 1. System dependencies. Detect-then-install.
+#    ffmpeg is optional (nova-3 usually accepts video directly); pandoc/poppler are for
+#    extracting text from incoming docx/pdf files.
 # ─────────────────────────────────────────────────────────────────────────
 command -v curl >/dev/null || die "$(t "curl is required (install: apt/brew install curl)" "нужен curl (установи: apt/brew install curl)")"
 
@@ -199,7 +199,7 @@ command -v python3>/dev/null 2>&1 || need_pkgs+=("python3")
 command -v ffmpeg >/dev/null 2>&1 || need_pkgs+=("ffmpeg")
 command -v pandoc >/dev/null 2>&1 || need_pkgs+=("pandoc")
 if ! command -v pdftotext >/dev/null 2>&1; then
-  # Имя пакета зависит от менеджера: brew → poppler, apt/dnf → poppler-utils.
+  # The package name depends on the manager: brew → poppler, apt/dnf → poppler-utils.
   case "$PM" in brew) need_pkgs+=("poppler") ;; *) need_pkgs+=("poppler-utils") ;; esac
 fi
 
@@ -209,7 +209,7 @@ if [ "${#need_pkgs[@]}" -gt 0 ]; then
     command -v git >/dev/null 2>&1 || die "$(t "git is required to install" "git обязателен для установки")"
   else
     step "$(t "Need system packages: ${need_pkgs[*]} (via $PM)" "Нужны системные пакеты: ${need_pkgs[*]} (через $PM)")"
-    # Кешируем sudo-пароль один раз в начале (если не root и нужен sudo).
+    # Cache the sudo password once up front (if not root and sudo is needed).
     if [ "$(id -u)" -ne 0 ] && [ "$PM" != "brew" ]; then
       sudo -v || warn "$(t "sudo unavailable — system packages may not install" "sudo недоступен — системные пакеты могут не установиться")"
     fi
@@ -218,7 +218,7 @@ if [ "${#need_pkgs[@]}" -gt 0 ]; then
         run_root apt-get update -qq || warn "$(t "apt-get update failed" "apt-get update не прошёл")"
         for p in "${need_pkgs[@]}"; do
           if [ "$p" = "gh" ]; then
-            # gh нет в базовых репах Debian/Ubuntu — добавляем официальный источник.
+            # gh isn't in the base Debian/Ubuntu repos — add the official source.
             run_root mkdir -p -m 755 /etc/apt/keyrings
             curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
               | run_root tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
@@ -246,7 +246,7 @@ command -v gh  >/dev/null 2>&1 && ok "$(t "gh ready" "gh готов")" || warn "
 command -v ffmpeg >/dev/null 2>&1 && ok "$(t "ffmpeg ready" "ffmpeg готов")" || warn "$(t "no ffmpeg (nova-3 usually accepts video directly)" "ffmpeg нет (nova-3 обычно принимает видео напрямую)")"
 
 # ─────────────────────────────────────────────────────────────────────────
-# 2. uv (Python-менеджер для autograph-скриптов vault)
+# 2. uv (Python manager for the vault's autograph scripts)
 # ─────────────────────────────────────────────────────────────────────────
 if command -v uv >/dev/null 2>&1 || [ -x "$HOME/.local/bin/uv" ]; then
   ok "$(t "uv already installed" "uv уже установлен")"
@@ -258,7 +258,7 @@ export PATH="$HOME/.local/bin:$PATH"
 command -v uv >/dev/null 2>&1 && ok "uv $(uv --version 2>/dev/null | awk '{print $2}')" || warn "$(t "uv not on PATH — open a new shell" "uv не на PATH — откройте новый шелл")"
 
 # ─────────────────────────────────────────────────────────────────────────
-# 3. Node 24+ (через nvm, без root)
+# 3. Node 24+ (via nvm, no root)
 # ─────────────────────────────────────────────────────────────────────────
 need_node=1
 if command -v node >/dev/null; then
@@ -271,10 +271,10 @@ if [ "$need_node" -eq 1 ]; then
   if [ ! -s "$NVM_DIR/nvm.sh" ]; then
     curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
   fi
-  # ВАЖНО: nvm внутри штатно делает `return <non-zero>` (особенно при npm `prefix`
-  # в ~/.npmrc — частый случай с ~/.npm-global). Чтобы это НЕ роняло установку и НЕ
-  # печатало ложную «ошибку», на время nvm снимаем ERR-trap и errexit. `nvm use` не
-  # зовём вовсе — node берём прямо из каталога версии.
+  # IMPORTANT: nvm normally does `return <non-zero>` internally (especially with an npm `prefix`
+  # in ~/.npmrc — common with ~/.npm-global). So that this does NOT crash the install or
+  # print a false "error", remove the ERR trap and errexit for the duration of nvm. We don't
+  # call `nvm use` at all — we take node straight from the version directory.
   trap - ERR
   set +e
   # shellcheck disable=SC1091
@@ -292,7 +292,7 @@ command -v node >/dev/null 2>&1 || die "$(t "Node $NODE_MAJOR_MIN+ failed to ins
 ok "Node $(node -v)"
 
 # ─────────────────────────────────────────────────────────────────────────
-# 4. Код проекта (текущий каталог / обновление / клон)
+# 4. Project code (current directory / update / clone)
 # ─────────────────────────────────────────────────────────────────────────
 SOURCE="${BASH_SOURCE[0]:-}"
 SCRIPT_DIR=""
@@ -314,36 +314,36 @@ fi
 cd "$PROJECT_DIR"
 
 # ─────────────────────────────────────────────────────────────────────────
-# 5. npm-зависимости
+# 5. npm dependencies
 # ─────────────────────────────────────────────────────────────────────────
 step "$(t "Installing dependencies…" "Ставлю зависимости…")"
 if [ -f package-lock.json ]; then npm ci; else npm install; fi
 ok "$(t "Dependencies installed" "Зависимости установлены")"
 
 # ─────────────────────────────────────────────────────────────────────────
-# 5b. Браузер agent-browser (веб-автоматизация: формы, логины, скриншоты, парсинг)
+# 5b. agent-browser (web automation: forms, logins, screenshots, scraping)
 # ─────────────────────────────────────────────────────────────────────────
-# Бинарь ставится в npm-global; путь нужен и здесь, и в PATH сервиса (ниже).
+# The binary installs into npm-global; the path is needed here and in the service PATH (below).
 NPM_GLOBAL_BIN="$(npm prefix -g 2>/dev/null)/bin"
 export PATH="$NPM_GLOBAL_BIN:$PATH"
 step "$(t "Installing the agent-browser (for web tasks)" "Ставлю браузер agent-browser (для веб-задач)")"
 echo "  ${c_yellow}$(t "Next it downloads Chromium and system libraries — the longest step (1–3 min)." "Дальше скачается Chromium и системные библиотеки — это дольше всего (1–3 мин).")${c_reset}"
 echo "  ${c_yellow}$(t "The output below = work under the hood, do NOT interrupt. It may ask for the sudo password again." "Поток вывода ниже = работа идёт под капотом, НЕ прерывай. Может снова спросить пароль sudo.")${c_reset}"
-# Обновляем sudo-кеш заранее (видимый запрос здесь, а не скрытый посреди установки).
+# Refresh the sudo cache ahead of time (a visible prompt here, not a hidden one mid-install).
 if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then sudo -v 2>/dev/null || true; fi
-# Вывод НЕ глушим: пользователь должен видеть прогресс (загрузка/apt), иначе кажется, что зависло.
+# Don't silence the output: the user should see progress (download/apt), otherwise it looks frozen.
 if npm i -g agent-browser; then
   step "$(t "Downloading Chromium + system libraries…" "Скачиваю Chromium + системные библиотеки…")"
   agent-browser install --with-deps \
     || warn "$(t "agent-browser install --with-deps failed — finish later: agent-browser install --with-deps" "agent-browser install --with-deps не прошёл — доставишь позже: agent-browser install --with-deps")"
-  # Chrome на Ubuntu 23.10+/24.04 не стартует: ядро запрещает unprivileged user
-  # namespaces (AppArmor) → "No usable sandbox". На Linux включаем --no-sandbox
-  # дефолтом для всех вызовов agent-browser (идемпотентно, не затирая чужой config).
+  # Chrome won't start on Ubuntu 23.10+/24.04: the kernel forbids unprivileged user
+  # namespaces (AppArmor) → "No usable sandbox". On Linux, enable --no-sandbox by
+  # default for all agent-browser calls (idempotent, without clobbering an existing config).
   if [ "$(uname -s)" = "Linux" ]; then
     node -e 'const fs=require("fs"),os=require("os"),p=require("path");const d=p.join(os.homedir(),".agent-browser"),f=p.join(d,"config.json");fs.mkdirSync(d,{recursive:true});let c={};try{c=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}const w="--no-sandbox";const cur=typeof c.args=="string"?c.args:Array.isArray(c.args)?c.args.join(","):"";if(!cur.split(/[,\n]/).map(s=>s.trim()).filter(Boolean).includes(w)){c.args=cur?cur+","+w:w;fs.writeFileSync(f,JSON.stringify(c,null,2)+"\n")}' \
       2>/dev/null || warn "$(t "couldn't configure ~/.agent-browser/config.json — add \"args\": \"--no-sandbox\" manually" "не настроил ~/.agent-browser/config.json — добавь \"args\": \"--no-sandbox\" вручную")"
   fi
-  # Реальная проверка запуска: doctor игнорирует config-args и ложно ругается на sandbox.
+  # A real launch check: doctor ignores config args and falsely complains about the sandbox.
   if agent-browser open about:blank >/dev/null 2>&1; then
     agent-browser close --all >/dev/null 2>&1 || true
     ok "$(t "agent-browser ready" "agent-browser готов")"
@@ -355,8 +355,8 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
-# 6. Интерактивная настройка (провайдер + модель + Telegram + Deepgram + TZ + vault)
-#    Читает /dev/tty → работает и при `curl | bash`. Без терминала — откладываем.
+# 6. Interactive setup (provider + model + Telegram + Deepgram + TZ + vault)
+#    Reads /dev/tty → works with `curl | bash` too. Without a terminal — defer it.
 # ─────────────────────────────────────────────────────────────────────────
 SETUP_DONE=false
 if [ "$RUN_SETUP" = false ]; then
@@ -369,15 +369,15 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
-# 7. Сборка
+# 7. Build
 # ─────────────────────────────────────────────────────────────────────────
 step "$(t "Building the agent (eve build)…" "Собираю агента (eve build)…")"
 npm exec -- eve build
 ok "$(t "Build ready → .output" "Сборка готова → .output")"
 
 # ─────────────────────────────────────────────────────────────────────────
-# 8. Live-vault: ОТДЕЛЬНЫЙ приватный git-репо (память + бэкап + Obsidian)
-#    Создаётся из vault-template/ (скелет в код-репо); личные данные в код-репо не идут.
+# 8. Live vault: a SEPARATE private git repo (memory + backup + Obsidian)
+#    Created from vault-template/ (a skeleton in the code repo); personal data never enters the code repo.
 # ─────────────────────────────────────────────────────────────────────────
 VAULT_DIR_REL="$(grep -E '^ASSISTANT_VAULT_DIR=' .env 2>/dev/null | head -n1 | cut -d= -f2- | tr -d '"' || true)"
 VAULT_DIR_REL="${VAULT_DIR_REL:-vault}"
@@ -389,8 +389,8 @@ step "$(t "Preparing the live vault from the template…" "Готовлю live-v
 ASSISTANT_VAULT_DIR="$VAULT_DIR_REL" node scripts/init-vault.mjs || warn "$(t "init-vault didn't run — check the vault manually" "init-vault не отработал — проверьте vault вручную")"
 
 # ─────────────────────────────────────────────────────────────────────────
-# 8.5. Команда `iva` в ~/.local/bin (update/config/doctor/uninstall/...).
-#     Wrapper с зашитыми путями node+проект — работает из любого shell.
+# 8.5. The `iva` command in ~/.local/bin (update/config/doctor/uninstall/...).
+#     A wrapper with hardcoded node+project paths — works from any shell.
 # ─────────────────────────────────────────────────────────────────────────
 step "$(t "Installing the iva command in ~/.local/bin…" "Ставлю команду iva в ~/.local/bin…")"
 mkdir -p "$HOME/.local/bin"
@@ -402,14 +402,14 @@ case ":$PATH:" in
 esac
 
 # ─────────────────────────────────────────────────────────────────────────
-# 9. systemd: основной сервис + таймеры памяти (Linux). Нужен настроенный .env.
+# 9. systemd: the main service + memory timers (Linux). Requires a configured .env.
 # ─────────────────────────────────────────────────────────────────────────
 if ! command -v systemctl >/dev/null 2>&1; then
-  : # не Linux/systemd — пропускаем тихо
+  : # not Linux/systemd — skip silently
 elif [ ! -f .env ]; then
   warn "$(t "No .env — not setting up autostart. First: npm run setup, then re-run install.sh." "Нет .env — автозапуск не настраиваю. Сначала: npm run setup, потом перезапустите install.sh.")"
 elif prompt_yes_no "$(t "Set up autostart via systemd (service + memory timers)?" "Завести автозапуск через systemd (сервис + таймеры памяти)?")" yes; then
-  # Запись юнитов делегируем iva CLI — единый источник правды (см. bin/iva.mjs writeUnits).
+  # Delegate writing the units to the iva CLI — the single source of truth (see bin/iva.mjs writeUnits).
   step "$(t "Installing systemd units (via the iva CLI)…" "Ставлю systemd-юниты (через iva CLI)…")"
   node "$PROJECT_DIR/bin/iva.mjs" _install-units || die "$(t "couldn't write the systemd units" "не удалось записать systemd-юниты")"
   poll_installed=1
@@ -432,7 +432,7 @@ elif prompt_yes_no "$(t "Set up autostart via systemd (service + memory timers)?
   loginctl enable-linger "$USER" >/dev/null 2>&1 || warn "$(t "couldn't enable linger (the service won't start before login)" "не удалось включить linger (сервис не стартует до логина)")"
   ok "$(t "Service started: systemctl --user status iva" "Сервис запущен: systemctl --user status iva")"
 
-  # Мгновенное подтверждение в Telegram (прямой Bot API — не зависит от сервера).
+  # Instant confirmation in Telegram (direct Bot API — doesn't depend on the server).
   _bot="$(grep -E '^TELEGRAM_BOT_TOKEN=' .env | head -n1 | cut -d= -f2- | tr -d '"' || true)"
   _chat="$(grep -E '^TELEGRAM_DIGEST_CHAT_ID=' .env | head -n1 | cut -d= -f2- | tr -d '"' || true)"
   if [ -z "$_chat" ]; then
@@ -448,7 +448,7 @@ elif prompt_yes_no "$(t "Set up autostart via systemd (service + memory timers)?
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
-# 10. Финал
+# 10. Final
 # ─────────────────────────────────────────────────────────────────────────
 echo
 echo "${c_green}${c_bold}┌──────────────────────────────────────────┐${c_reset}"

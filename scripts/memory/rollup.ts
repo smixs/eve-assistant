@@ -1,34 +1,34 @@
-// Консолидация памяти (DAG): один параметризованный скрипт для всех периодов.
-// Запускается systemd-таймером (см. deploy/iva-memory-*.{service,timer}), драйвит Iva
-// через eve/client (как scripts/daily-digest.ts), и для daily/weekly шлёт отчёт в Telegram.
+// Memory consolidation (DAG): one parameterized script for all periods.
+// Run by a systemd timer (see deploy/iva-memory-*.{service,timer}), drives Iva
+// via eve/client (like scripts/daily-digest.ts), and posts a report to Telegram for daily/weekly.
 //
 //   node --env-file=.env scripts/memory/rollup.ts <daily|weekly|monthly|yearly>
 //
-// Требует: запущенный агент (eve start) и vault с правилами обработки
-// (vault/.claude/rules/*-format.md + skills/dbrain-processor). Дата — в ASSISTANT_TIMEZONE.
+// Requires: a running agent (eve start) and a vault with processing rules
+// (vault/.claude/rules/*-format.md + skills/dbrain-processor). Date is in ASSISTANT_TIMEZONE.
 import { Client } from "eve/client";
 import { sendTelegramHtml } from "../lib/telegram-send.mjs";
 
 type Period = "daily" | "weekly" | "monthly" | "yearly";
 
 const PERIODS: readonly Period[] = ["daily", "weekly", "monthly", "yearly"];
-// process.argv: [node, script, <period>] — период это первый CLI-аргумент.
+// process.argv: [node, script, <period>] — the period is the first CLI argument.
 const period = process.argv[2] as Period | undefined;
 
 if (!period || !PERIODS.includes(period)) {
-  console.error(`Использование: rollup.ts <${PERIODS.join("|")}>`);
+  console.error(`Usage: rollup.ts <${PERIODS.join("|")}>`);
   process.exit(1);
 }
 
 const PORT = process.env.IVA_PORT ?? "8723";
 const HOST = process.env.ASSISTANT_HOST ?? `http://127.0.0.1:${PORT}`;
-const BEARER = process.env.ASSISTANT_BEARER; // нужен, если eve-канал в проде требует auth
+const BEARER = process.env.ASSISTANT_BEARER; // needed if the prod eve channel requires auth
 const BOT = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT = process.env.TELEGRAM_DIGEST_CHAT_ID;
 const VAULT = process.env.ASSISTANT_VAULT_DIR ?? "vault";
 const TZ = process.env.ASSISTANT_TIMEZONE ?? process.env.TZ ?? "UTC";
 
-// daily/weekly отчёты уходят в Telegram; monthly/yearly — тихие (только в vault).
+// daily/weekly reports go to Telegram; monthly/yearly are silent (vault only).
 const POST_TO_TELEGRAM: Record<Period, boolean> = {
   daily: true,
   weekly: true,
@@ -36,7 +36,7 @@ const POST_TO_TELEGRAM: Record<Period, boolean> = {
   yearly: false,
 };
 
-// Текущая дата в часовом поясе пользователя (systemd ставит TZ из .env, но подстрахуемся).
+// Current date in the user's timezone (systemd sets TZ from .env, but we hedge anyway).
 function localDate(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
@@ -46,7 +46,7 @@ function localDate(): string {
   }).format(new Date());
 }
 
-// Сдвиг ISO-даты (YYYY-MM-DD) на N дней; арифметика в UTC, без DST-краёв.
+// Shift an ISO date (YYYY-MM-DD) by N days; arithmetic in UTC, no DST edge cases.
 function shiftDate(iso: string, deltaDays: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
@@ -54,9 +54,9 @@ function shiftDate(iso: string, deltaDays: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
-// Целевой период берём ЗАВЕРШЁННЫМ: таймеры срабатывают в начале нового периода
-// (daily ≈04:00, weekly в Вс, monthly 1-го, yearly 1 янв), поэтому обрабатываем
-// ПРЕДЫДУЩИЙ период, а не пустой текущий (now — текущая локальная дата).
+// We take the target period as COMPLETED: timers fire at the start of a new period
+// (daily ≈04:00, weekly on Sun, monthly on the 1st, yearly on Jan 1), so we process
+// the PREVIOUS period, not the empty current one (now is the current local date).
 function buildPrompt(p: Period, now: string): string {
   const [y, m] = now.split("-").map(Number);
   const yesterday = shiftDate(now, -1);
@@ -64,52 +64,52 @@ function buildPrompt(p: Period, now: string): string {
   const prevYear = String(y - 1);
 
   const intro =
-    `Ты обрабатываешь долговременную память (vault: ${VAULT}). Сейчас ${now} (${TZ}). ` +
-    `Работай строго по правилам vault в ${VAULT}/.claude/rules/ и скиллу dbrain-processor. ` +
-    `Не выдумывай факты — бери их из исходных файлов. `;
+    `You are processing long-term memory (vault: ${VAULT}). It is now ${now} (${TZ}). ` +
+    `Work strictly by the vault rules in ${VAULT}/.claude/rules/ and the dbrain-processor skill. ` +
+    `Do not invent facts — take them from the source files. `;
 
   const tail =
-    `В конце верни КОРОТКИЙ отчёт обычным текстом (без markdown-таблиц): что создано/обновлено, ` +
-    `ключевые темы и ссылки между карточками. Только готовый отчёт, без вступлений и рассуждений.`;
+    `At the end, return a SHORT report in plain text (no markdown tables): what was created/updated, ` +
+    `key topics and links between cards. Only the finished report, with no preamble or reasoning.`;
 
   switch (p) {
     case "daily":
       return (
         intro +
-        `Обработай сырой транскрипт за завершившийся день (${VAULT}/daily/${yesterday}.md): ` +
-        `извлеки сущности и создай/обнови карточки autograph, ` +
-        `затем собери daily-summary за ${yesterday} с темами дня и MOC-ссылками вниз на карточки ` +
-        `и на сырой транскрипт daily/${yesterday}.md. ` +
-        `Затем обнови ${VAULT}/CORE.md по правилу .claude/rules/core-format.md: актуализируй постоянные ` +
-        `факты о пользователе, предпочтения, активные цели (≤3) и указатель на последний день (${yesterday}); ` +
-        `держи ≤~1200 символов — при переполнении ужми, не раздувай. ` +
-        `Отдельно просканируй транскрипт на коррекции пользователя (где он поправил тебя, переспросил, ` +
-        `выразил недовольство ответом или форматом): если виден ПОВТОРЯЕМЫЙ урок поведения, а не разовая ` +
-        `правка — допиши/уточни строку в Предпочтения CORE, чтобы впредь не повторять ошибку. ` +
+        `Process the raw transcript of the completed day (${VAULT}/daily/${yesterday}.md): ` +
+        `extract entities and create/update autograph cards, ` +
+        `then assemble a daily-summary for ${yesterday} with the day's topics and MOC links down to the cards ` +
+        `and to the raw transcript daily/${yesterday}.md. ` +
+        `Then update ${VAULT}/CORE.md per the .claude/rules/core-format.md rule: refresh permanent ` +
+        `facts about the user, preferences, active goals (≤3), and the pointer to the last day (${yesterday}); ` +
+        `keep it ≤~1200 characters — compress on overflow, don't bloat. ` +
+        `Separately, scan the transcript for user corrections (where they corrected you, asked again, ` +
+        `or expressed dissatisfaction with an answer or format): if a REPEATABLE behavioral lesson is visible, ` +
+        `not a one-off fix — add/refine a line in the CORE Preferences section so you don't repeat the mistake. ` +
         tail
       );
     case "weekly":
       return (
         intro +
-        `Собери weekly-summary за завершившуюся неделю (7 дней, заканчивающихся ${yesterday}): ` +
-        `прочитай daily-summary этих 7 дней, выдели сквозные темы и итоги недели, ` +
-        `создай weekly-summary с MOC-ссылками вниз на эти daily-summary. ` +
+        `Assemble a weekly-summary for the completed week (7 days ending ${yesterday}): ` +
+        `read the daily-summaries of those 7 days, pull out cross-cutting topics and the week's takeaways, ` +
+        `create a weekly-summary with MOC links down to those daily-summaries. ` +
         tail
       );
     case "monthly":
       return (
         intro +
-        `Собери monthly-summary за завершившийся месяц ${prevMonth}: ` +
-        `прочитай weekly-summary месяца ${prevMonth}, выдели главные темы и итоги месяца, ` +
-        `создай monthly-summary с MOC-ссылками вниз на недельные саммари. ` +
+        `Assemble a monthly-summary for the completed month ${prevMonth}: ` +
+        `read the weekly-summaries of month ${prevMonth}, pull out the main topics and the month's takeaways, ` +
+        `create a monthly-summary with MOC links down to the weekly summaries. ` +
         tail
       );
     case "yearly":
       return (
         intro +
-        `Собери yearly-summary за завершившийся год ${prevYear}: ` +
-        `прочитай monthly-summary года ${prevYear}, выдели главные темы и итоги года, ` +
-        `создай yearly-summary с MOC-ссылками вниз на месячные саммари. ` +
+        `Assemble a yearly-summary for the completed year ${prevYear}: ` +
+        `read the monthly-summaries of year ${prevYear}, pull out the main topics and the year's takeaways, ` +
+        `create a yearly-summary with MOC links down to the monthly summaries. ` +
         tail
       );
   }
@@ -125,38 +125,38 @@ const session = client.session();
 const response = await session.send(buildPrompt(period, today));
 const result = await response.result();
 
-// Интерактивный ход завершается статусом "waiting" (сессия готова к следующему сообщению),
-// поэтому ориентируемся на наличие текста, а не на статус "completed".
+// An interactive turn ends with status "waiting" (the session is ready for the next message),
+// so we rely on the presence of text rather than a "completed" status.
 if (result.status === "failed" || !result.message) {
-  console.error(`rollup ${period}: агент не вернул отчёт (status=${result.status})`);
+  console.error(`rollup ${period}: agent returned no report (status=${result.status})`);
   process.exit(1);
 }
 
 console.log(`rollup ${period} (${today}):\n${result.message}`);
 
-// Отчёт в Telegram только для daily/weekly.
+// Telegram report only for daily/weekly.
 if (POST_TO_TELEGRAM[period]) {
   if (!BOT || !CHAT) {
     console.error(
-      `rollup ${period}: нет TELEGRAM_BOT_TOKEN/TELEGRAM_DIGEST_CHAT_ID — отчёт не отправлен`,
+      `rollup ${period}: no TELEGRAM_BOT_TOKEN/TELEGRAM_DIGEST_CHAT_ID — report not sent`,
     );
     process.exit(1);
   }
-  // Конвертация markdown → Telegram-HTML + self-heal живут в общем хелпере.
+  // markdown → Telegram-HTML conversion + self-heal live in a shared helper.
   const r = await sendTelegramHtml(BOT, CHAT, result.message);
   if (r.fellBack) {
-    // HTML не распарсился — отчёт ушёл плоским. Даём агенту обратную связь в ту же
-    // сессию, чтобы следующий отчёт он отформатировал проще (один ход, без переотправки).
+    // HTML didn't parse — the report went out flat. Give the agent feedback in the same
+    // session so it formats the next report more simply (one turn, no resend).
     await session.send(
-      `Прошлый отчёт не прошёл Telegram parse_mode=HTML (${r.error}) и ушёл плоским текстом. ` +
-        "В следующий раз форматируй проще: **жирный**, `код`, списки — без сырого HTML.",
+      `The last report failed Telegram parse_mode=HTML (${r.error}) and went out as flat text. ` +
+        "Next time format it more simply: **bold**, `code`, lists — no raw HTML.",
     );
   }
   if (!r.ok) {
     console.error(`rollup ${period}: Telegram send failed:`, r.error);
     process.exit(1);
   }
-  console.log(`rollup ${period}: отчёт отправлен в Telegram.`);
+  console.log(`rollup ${period}: report sent to Telegram.`);
 }
 
 process.exit(0);
