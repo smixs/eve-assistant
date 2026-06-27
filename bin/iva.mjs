@@ -177,23 +177,93 @@ function restartServices() {
 }
 
 // ANSI-дерево как при установке. Единственный источник арта — install.sh (heredoc
-// IVA_TREE), читаем его оттуда, чтобы не плодить копию. Только в реальном терминале;
-// любой сбой — молча пропускаем, обновление важнее картинки.
-function showTree() {
+// IVA_TREE), читаем его оттуда, чтобы не плодить копию. В реальном терминале даём
+// лёгкую «жизнь»: крона качается на ветру, цвета переливаются, глифы чуть дышат.
+// Не-TTY / узкое окно / IVA_NO_ANIM / любой сбой — статичный кадр (или ничего).
+const TREE_RAMP = " .:;!icoa*xw#%$&@"; // тот же набор, что у генератора арта
+
+// Разбираем heredoc в сетку ячеек: {ch,r,g,b} для цветного глифа, {ch:" ",bg} для фона.
+function loadTreeGrid() {
+  const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
+  const body = sh.split("<<'IVA_TREE'\n")[1]?.split("\nIVA_TREE")[0];
+  if (!body) return null;
+  const re = /\x1b\[38;2;(\d+);(\d+);(\d+)m([\s\S])|\x1b\[0m|([\s\S])/g;
+  return body.replace(/\\033/g, "\x1b").split("\n").map((line) => {
+    const cells = [];
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(line))) {
+      if (m[4] !== undefined) cells.push({ ch: m[4], r: +m[1], g: +m[2], b: +m[3] });
+      else if (m[5] !== undefined) cells.push({ ch: m[5], bg: true });
+    }
+    return cells;
+  });
+}
+
+const clampByte = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
+const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
+// Один кадр. live=false → опорный (без качания/переливов) для финального покоя.
+function renderTreeFrame(grid, t, live) {
+  const rows = grid.length;
+  let out = "";
+  for (let y = 0; y < rows; y++) {
+    const cells = grid[y];
+    let lead = 0;
+    while (lead < cells.length && cells[lead].bg) lead++;
+    let last = cells.length - 1;
+    while (last >= 0 && cells[last].bg) last--;
+    // дерево стоит неподвижно — оживают только глифы и их цвета
+    let line = " ".repeat(lead);
+    for (let x = lead; x <= last; x++) {
+      const c = cells[x];
+      if (c.bg) { line += " "; continue; }
+      let { r, g, b, ch } = c;
+      if (live) {
+        const shim = 1 + 0.16 * Math.sin(t * 0.6 + x * 0.45 + y * 0.3); // перелив яркости
+        r = clampByte(Math.round(r * shim));
+        g = clampByte(Math.round(g * shim));
+        b = clampByte(Math.round(b * shim));
+        const idx = TREE_RAMP.indexOf(ch); // дыхание глифа на ±1 по рампе (не в фон)
+        if (idx > 0) ch = TREE_RAMP[clamp(idx + Math.round(0.9 * Math.sin(t * 0.5 + x * 0.7 + y * 1.1)), 1, TREE_RAMP.length - 1)];
+      }
+      line += `\x1b[38;2;${r};${g};${b}m${ch}`;
+    }
+    out += line + "\x1b[0m\x1b[K\n";
+  }
+  return out;
+}
+
+async function showTree() {
   if (!process.stdout.isTTY) return;
   try {
-    const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
-    const body = sh.split("<<'IVA_TREE'\n")[1]?.split("\nIVA_TREE")[0];
-    if (body) process.stdout.write(`\n${body.replace(/\\033/g, "\x1b")}\n\n`);
+    const grid = loadTreeGrid();
+    if (!grid) return;
+    const rows = grid.length;
+    const width = Math.max(...grid.map((r) => r.length)) + 3;
+    process.stdout.write("\n");
+    // узкое окно ломает перерисовку курсором — показываем статично
+    if ((process.stdout.columns || 80) < width || process.env.IVA_NO_ANIM) {
+      process.stdout.write(renderTreeFrame(grid, 0, false) + "\n");
+      return;
+    }
+    process.stdout.write("\x1b[?25l"); // прячем курсор
+    const FRAMES = 36, DELAY = 70;
+    for (let f = 0; f < FRAMES; f++) {
+      if (f > 0) process.stdout.write(`\x1b[${rows}A`);
+      process.stdout.write(renderTreeFrame(grid, f * 0.7, true));
+      await new Promise((r) => setTimeout(r, DELAY));
+    }
+    process.stdout.write(`\x1b[${rows}A` + renderTreeFrame(grid, 0, false) + "\x1b[?25h\n");
   } catch {
-    /* нет install.sh или не прочиталось — пропускаем арт */
+    process.stdout.write("\x1b[?25h"); // на всякий — вернуть курсор
   }
 }
 
 // ── команды ───────────────────────────────────────────────────────────────
 async function cmdUpdate(args) {
   const force = args.includes("--force");
-  showTree();
+  await showTree();
   step("Обновляю Iva…");
   const before = gitHead();
   const pull = cap("git", ["pull", "--ff-only"]);
@@ -486,6 +556,7 @@ const cmds = {
   logs: cmdLogs,
   uninstall: cmdUninstall,
   version: cmdVersion,
+  tree: showTree, // проиграть ANSI-дерево (анимация ветра)
   help: cmdHelp,
   "--help": cmdHelp,
   "-h": cmdHelp,
