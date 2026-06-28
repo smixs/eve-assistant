@@ -116,15 +116,39 @@ if (history.length >= 2) {
   }
 }
 
-// ── 3. Git commit & push (guard on remote/credentials) ──
-const remote = run("git", ["remote", "get-url", "origin"]);
-if (remote.status !== 0 || !remote.stdout.trim()) {
+// ── 3. Git commit & push ──
+// Auto-provision a private backup remote via the already-authorized gh CLI instead of
+// nagging nightly: only alert when gh itself can't help (not installed / not logged in).
+function ensureRemote(): string {
+  const existing = run("git", ["remote", "get-url", "origin"]);
+  if (existing.status === 0 && existing.stdout.trim()) return existing.stdout.trim();
+
+  if (run("gh", ["auth", "status"]).status !== 0) return ""; // gh missing or not authed
+  run("gh", ["auth", "setup-git"]); // make https push use gh credentials
+
+  // Create the private repo and wire origin in one shot.
+  const create = run("gh", ["repo", "create", "iva-vault", "--private", "--source", VAULT, "--remote", "origin", "--push"]);
+  if (create.status === 0) {
+    console.log("doctor: created private backup repo iva-vault and attached origin");
+    return run("git", ["remote", "get-url", "origin"]).stdout.trim();
+  }
+
+  // Repo probably already exists — just point origin at <user>/iva-vault.
+  const login = run("gh", ["api", "user", "--jq", ".login"]).stdout.trim();
+  if (!login) return "";
+  const url = `https://github.com/${login}/iva-vault.git`;
+  run("git", ["remote", "add", "origin", url]);
+  return run("git", ["remote", "get-url", "origin"]).stdout.trim();
+}
+
+const remoteUrl = ensureRemote();
+if (!remoteUrl) {
   await telegram(
-    "vault is not connected to a git remote — memory is not being backed up. On the server run:\n" +
-      "  gh auth login\n" +
-      `  cd ${VAULT} && git remote add origin <repo-url> && git push -u origin HEAD`,
+    "vault has no git remote and gh is not authenticated — memory is not being backed up. " +
+      "On the server run `gh auth login` (with repo scope); the nightly doctor will then create " +
+      "a private iva-vault repo and back up automatically.",
   );
-  console.error("doctor: git remote not configured — push skipped");
+  console.error("doctor: no remote and gh unavailable — push skipped");
   process.exit(failures.length ? 1 : 0);
 }
 

@@ -56,9 +56,9 @@ if (!existsSync(resolve(VAULT, ".git"))) {
   }
   console.log("init-vault: vault git repo initialized.");
   console.log(
-    "Attach a private remote for backup:\n" +
+    "For off-server backup, authorize gh once:\n" +
       "  gh auth login\n" +
-      `  gh repo create <user>/iva-vault --private --source="${VAULT}" --remote=origin --push`,
+      "The nightly doctor then auto-creates a private iva-vault repo and pushes to it.",
   );
 } else {
   console.log("init-vault: vault git repo already exists — skipping init.");
