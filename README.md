@@ -2,9 +2,9 @@
 
 **English | [Русский](README.ru.md)**
 
-<img src="assets/iva-header.webp" alt="Iva — personal AI agent with long-term memory" width="100%">
+<img src="assets/iva-header.webp" alt="Iva — a personal AI agent with long-term memory" width="100%">
 
-**Your own AI agent. Your server, your memory — one command and it just works.**
+**A personal AI agent with long-term memory. One command installs it on a $4 server, and it remembers everything about you.**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
@@ -13,6 +13,7 @@ curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
 [![Release](https://img.shields.io/github/v/release/smixs/iva?color=brightgreen)](https://github.com/smixs/iva/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/smixs/iva?style=social)](https://github.com/smixs/iva/stargazers)
+[![built on eve](https://img.shields.io/badge/built%20on-eve-000000?logo=vercel&logoColor=white)](https://eve.dev/docs/introduction)
 
 </div>
 
@@ -20,35 +21,25 @@ curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
 
 ## What it is
 
-Iva is a personal AI agent that lives in your Telegram and runs on a server you own. Install it with
-one command, then just talk to it — by text or by voice. It answers, and it remembers: your tasks,
-decisions, the people and projects you mention. The longer you use it, the better it knows you.
+Iva is a minimal personal AI agent with long-term memory, built on [eve](https://eve.dev/docs/introduction), the agent framework from Vercel. It lives in Telegram and runs on your own server. One command installs it, and there's almost nothing to set up — it's all been chosen for you.
 
-No dashboard to log into, no SaaS account, no per-message meter running. The code and the memory sit
-on your machine. You bring your own model key, and you pick the model.
+The main thing here is memory. Iva breaks every conversation down into facts — about you, the people around you, your projects and decisions — and files them into a tree that it tidies up on its own every night. The longer you use it, the better it knows you.
+
+And it's cheap. The minimum is one core, 512 MB of memory, 10 GB of disk: a $4 DigitalOcean droplet plus a model through OpenCode Go for $5. About $9 a month for an agent that sends you a morning digest and reminds you about meetings. The code and the memory are yours; you pick the key and the model. Fully open source.
 
 ---
 
-## Why Iva
+## Why another agent
 
-[OpenClaw](https://github.com/openclaw/openclaw), [Hermes](https://github.com/NousResearch/hermes-agent),
-[nanobot](https://github.com/HKUDS/nanobot) — there are a lot of good personal agents out there. So why
-build another one? Because every one of them hands you the same pile of decisions: which model, which
-memory, which search, how to deploy, how to wire it together. Too much choice is the real problem.
+[OpenClaw](https://github.com/openclaw/openclaw), [Hermes](https://github.com/NousResearch/hermes-agent), [nanobot](https://github.com/HKUDS/nanobot) — there's already a choice, and a decent one. The problem is that each of them dumps the same pile of decisions on you: which model, which memory, which search, how to deploy, how to wire it all together. Too many options — that's the real pain.
 
-So I made the choices. I test agents, models, stacks and harnesses all the time, keep what's actually
-best, and fold it into Iva — so you get the result without doing the research. The goal is one thing: a
-cheap, fast, reliable agent for every day, the kind that pings you with your morning digest on its own.
+So I made the choice myself. I'm always testing agents, models, stacks and harnesses, keeping what actually works, and folding it into Iva — so you don't have to dig through it yourself. The goal is simple: a cheap, fast, reliable agent for every day, one that sends you a morning digest on its own.
 
-- **The best of every agent, in one.** I've been at this a while. The good ideas from across the field,
-  tested and assembled, set up with sane defaults — that's what installs when you run the command.
-- **Open all the way down.** Open-source code on open-source models. The open models — DeepSeek, Kimi,
-  GLM — are genuinely good now: you pick one by name, your key, no markup, no closed vendor moving the
-  price under you.
-- **One command, and it works.** Telegram for the chat, Deepgram for voice, a tree-shaped memory,
-  nightly rollups — already picked, wired and configured. The Linux Mint of AI agents.
+- **The best of different agents in one place.** I've been at this a long time — I pick out the good ideas and assemble them with simple defaults.
+- **Open to extend.** Open code on open models — DeepSeek, Kimi, GLM are genuinely strong now, and you switch on the fly.
+- **One command, and it works.** Telegram for chat, Deepgram for voice, tree-shaped memory, nightly summaries — already assembled and configured. Something like the Linux Mint of AI agents.
 
-Lots of agents out there. This one's mine — now it's yours too.
+There are plenty of agents around. This one's mine. Now it's yours too.
 
 ---
 
@@ -56,124 +47,90 @@ Lots of agents out there. This one's mine — now it's yours too.
 
 | | |
 |---|---|
-| 🎙️ **Voice & video** | Transcribes voice notes and video circles, understands speech in many languages (Deepgram nova-3). |
-| 🧠 **Long-term memory** | Remembers your conversations and tidies them up on its own, every night. |
-| 🔎 **Fast recall** | Finds the right note in seconds — straight over plain files, no index to rebuild. |
-| ⏰ **On a schedule** | Day or week digests, recurring jobs. Can check your inbox and send you a summary, on time. |
-| 🔔 **Reminders** | Tell it what and when, and it won't let you forget. |
+| 🎙️ **Voice & video** | Transcribes voice notes and video messages in any language (Deepgram nova-3). |
+| 🧠 **Long memory** | Remembers your conversations and tidies them up on its own at night. |
+| 🔎 **Fast search** | Finds what you need in seconds, straight over the files — no index to rebuild. |
+| ⏰ **On a schedule** | Day or week digests, recurring jobs; it can check your inbox and send you a summary. |
+| 🔔 **Reminders** | Tell it what and when — it won't forget. |
 | 🤖 **Your choice of model** | DeepSeek, Kimi, GLM and other open models — switch any time. |
-| 🌐 **Does more** | Searches the web (free Tavily/Exa key), opens pages, drives a browser, connects to MCP servers. |
+| 🌐 **And a bit more** | Searches the web (free Tavily/Exa key), opens pages, drives a browser, connects to MCP. |
 | 🎭 **A character** | Change its tone and rules right in the chat — it rewrites itself. |
 
-Everything the best agents have — voice, search, skills, MCP — Iva has too. The difference is what
-happens underneath.
+Everything the best agents have — voice, search, skills, MCP — is here too. The difference is what's under Iva's hood.
 
 ---
 
 ## Memory — the part that compounds
 
-Most agents forget you the moment the context window fills up. Iva doesn't. Its memory is shaped like
-a tree — and the name *Iva* means *willow* in Russian.
+Most agents forget you the moment the context window fills up. Iva doesn't. Its memory is shaped like a tree — and *Iva* means *willow*, so it fits.
 
 ```
-        🪵  TRUNK   — year + cards on people, projects, decisions (the durable picture)
+        🪵  TRUNK    - year + cards on people, projects, decisions (the big picture)
        ╱  ╲
-      🌿 BRANCHES   — monthly summaries, built from weeks, built from days
+      🌿 BRANCHES   - monthly summaries, built from weeks, built from days
      ╱      ╲
-    🍃 LEAVES        — the full, word-for-word transcript of each day
+    🍃 LEAVES        - the full, word-for-word transcript of each day
 ```
 
-- **Leaves** — every day's raw transcript, kept verbatim.
-- **Branches** — short summaries: first per day, then a week folded from days, a month from weeks.
-- **Trunk** — it all converges into the big picture: the year, plus fact cards on the people,
-  projects and decisions that matter.
+- Leaves — the raw transcript of each day, word for word.
+- Branches — short summaries: first per day, then a week folded from days, a month from weeks.
+- Trunk — it all converges into the big picture: the year, plus fact cards on the people, projects and decisions that matter.
 
-Every night Iva does the gardening itself: it summarizes the leaves and folds them up the branches.
-So it can recall word-for-word what was said on a specific Tuesday *and* tell you what you spent the
-whole month on.
+Every night Iva does the tidying itself: it summarizes the leaves and folds them up the branches. So it can recall word-for-word what was said on a particular Tuesday, and tell you what you spent the whole month on.
 
-**It's "low-context memory" by design.** Iva never loads its whole history into the model. Always in
-context is one tiny CORE file (who you are, your standing preferences, active goals); everything else
-is pulled in only when a task needs it, found by a literal search over the files.
+This is low-context memory by design. Iva never loads its whole history into the model. Always in context is one tiny CORE file — who you are, your standing preferences, active goals. Everything else is pulled in for the specific task, found by a plain search over the files.
 
-The heavy memory systems — [Papr](https://platform.papr.ai), mem0, MemGPT/Letta — buy semantic recall
-with an embedding model plus a vector or graph database to run, sync and pay for. Iva spends its
-complexity budget at the other end: it **structures memory when it's written** (the nightly rollup and
-the entity cards) so reading it back can stay a plain search. The trade is honest — this wins on
-local-first, zero-infrastructure, fully inspectable, git-diffable memory for a personal vault. If you
-ever outgrow it, adding a real index is the upgrade path, not a rewrite.
-
-What that buys you:
-
-- **Zero infrastructure** — no vector DB, no embedding model, no graph server. Memory is Markdown files.
-- **Fully yours and readable** — open any memory in a text editor, grep it, diff it in git.
-- **Cheap and private** — lives on your disk, nothing shipped to a third-party memory service.
-- **Easy to fix** — when memory is wrong, you edit a file. No re-indexing, no stale-embedding mystery.
-
-Memory is the part I've worked on the longest — first
-[agent-second-brain](https://github.com/smixs/agent-second-brain), then the **autograph** typed-graph
-skill, and all of it folded into Iva. The tree above is a hierarchical summary DAG: it compacts older
-days while keeping a pointer back to every original — the idea at the heart of the
-**[LCM: Lossless Context Management](https://papers.voltropy.com/LCM)** paper (Ehrlich & Blackman,
-2026), plus my own vision and a lot of practice on top. It's one of the best memory designs you'll find
-in a personal agent today — and it runs on open models you own, no subscription required.
+Memory is the part I've worked on longest: first [agent-second-brain](https://github.com/smixs/agent-second-brain), then the typed-graph skill autograph, and all of that experience is gathered here. The tree above is a hierarchical summary DAG: older days get compressed, but a pointer back to the original stays. At its core is the idea from the [LCM: Lossless Context Management](https://papers.voltropy.com/LCM) paper (Ehrlich & Blackman, 2026), plus my own work on top. One of the best memory designs a personal agent has today — and it runs on open models you own, no subscription.
 
 ---
 
 ## How it works
 
 ```
-Telegram  ──(long-polling, getUpdates)──►  Iva (eve agent on your host)  ──►  vault (Markdown files)
-                                                                              ▲
-                                          systemd timers ─ nightly rollups ───┘
+Telegram  ──(long-polling, getUpdates)──►  Iva (eve agent on your host)  ──►  vault (markdown files)
+                                                                            ▲
+                                       systemd timers ─ nightly rollups ────┘
 ```
-
-No public domain, no webhook, no reverse proxy. Iva polls Telegram from inside, so it runs on any
-plain server. At night, systemd timers roll the day's transcript up into summaries and back up the
-vault to a private git repo.
 
 ---
 
 ## Providers & cost
 
-Iva is free and open-source. You pay only for a server and a model subscription:
+Iva itself is free and open-source. You pay only for a server and a model subscription:
 
-- **Server** — any small always-on box (a VPS with ~1–2 GB RAM, around **$5/mo**), or your own
-  computer if you keep it on.
-- **Model** — pick one provider, both OpenAI-compatible, your own key:
-  - **OpenCode Zen (Go)** — around **$5/mo**, leaner limits. Cheapest start.
-  - **Ollama Cloud** — around **$20/mo**, higher limits.
+- Server — any always-on box (a VPS with ~1–2 GB of memory, around $5/mo), or your own computer while it's on.
+- Model — pick one provider; both are OpenAI-compatible and work from any IP:
+  - OpenCode Zen (Go) — around $5/mo, leaner limits. The cheapest start.
+  - Ollama Cloud — around $20/mo, more generous limits.
 
-  Inside either, you choose the model (DeepSeek recommended). No markup over the provider's price.
-- **Voice** — [Deepgram](https://console.deepgram.com) for transcription (free starter credit).
+  Inside the provider you pick the model (I'd suggest DeepSeek). No markup over the provider's price.
+- Voice — [Deepgram](https://console.deepgram.com) for transcription; they give a free starter credit.
 
 ---
 
 ## Install
 
 1. Open a terminal on your server (or your own computer).
-2. Paste the command and hit Enter:
+2. Paste the command and press Enter.
 
    ```bash
    curl -fsSL https://raw.githubusercontent.com/smixs/iva/main/install.sh | bash
    ```
-3. The installer asks your language first (English or Russian), then walks you through each key with a
-   direct link — paste them when prompted. Once it asks, send your bot any message so Iva learns who
-   you are and answers only you.
-4. Done. Message your bot in Telegram — Iva replies.
+3. The installer first asks your language — English or Russian — then walks you through each key with a direct link; you just paste the values. At some point it asks you to send the bot any message — that's how Iva remembers you and answers only you.
+4. Done. Message the bot in Telegram, and Iva replies.
 
-More on running it on a VPS: [DEPLOY.md](DEPLOY.md).
+More on running it on a VPS — [DEPLOY.md](DEPLOY.md).
+
+> How to get onto a rented server: the host sends you an address (IP), a login and a password. On Mac or Linux open "Terminal", on Windows "PowerShell", type `ssh root@YOUR_ADDRESS`, then the password. You're in.
 
 ---
 
-## Talking to Iva
+## How to use it
 
-Message the bot like a normal chat — text or voice. Commands work right in the chat:
+Message the bot like any normal chat — text or voice. Commands work right in the chat.
 
 | Command | What it does |
-|---------|--------------|
-| `/task buy milk` | add a task |
-| `/tasks` | show the task list |
+|---------|------------|
 | `/digest` | day summary |
 | `/new` | start the conversation fresh |
 | `/help` | list of commands |
@@ -183,25 +140,22 @@ Message the bot like a normal chat — text or voice. Commands work right in the
 
 ## Privacy
 
-The code and the memory stay on your server. The vault is its own **private** git repo — set the
-remote once and your memory backs itself up. Keys live in `.env`, never in the code, and the bot
-answers only the Telegram IDs you allow (it stays silent to everyone else by default).
+The code and the memory stay on your server. The vault is its own private git repository: link the remote once, and the memory backs itself up. Keys live in `.env`, not in the code. The bot answers only the Telegram IDs you allow, and stays silent to everyone else by default.
 
-Honest about the boundary: the **model** and **voice transcription** run through cloud APIs (the ones
-you picked and pay for). Self-hosted means your code and memory — not the model weights.
+Honest about the boundary: the model and the voice transcription run through cloud APIs — the ones you chose and pay for yourself. Self-hosted here means your code and memory, not the model weights.
 
 ---
 
-## What Iva does *not* do
+## What Iva does not do
 
-So you know exactly what you're getting:
+So you know exactly what you're getting.
 
-- **Telegram only.** No web app or dashboard — the chat is the whole interface.
-- **Replies in the language you chose at install.** Switchable, but it's one language at a time.
-- **Memory backup is a `git push`** to a repo you create once — not a managed cloud sync.
-- **Search is literal, not semantic.** It greps your files; there's no vector/embedding recall.
-- **Single user.** One owner, one vault — not a team or multi-tenant assistant.
-- **Pre-1.0.** It works and it's in daily use, but it's young. Expect rough edges, report them.
+- Telegram only. No web app, no dashboard — the chat is the whole interface.
+- Replies in the language you chose at install. Switchable, but not two at once.
+- Memory backup is a `git push` to a repo you set up once, not a managed cloud sync.
+- Search is literal, not semantic. Iva greps your files; there's no vector search.
+- Single user. One owner, one vault — not a team or multi-tenant assistant.
+- Pre-1.0. It works and it's in daily use, but it's young. Expect rough edges — report them.
 
 ---
 
@@ -215,10 +169,8 @@ If Iva is useful to you, a ⭐ genuinely helps other people find it — that's t
 
 ## Built on
 
-[eve](https://www.npmjs.com/package/eve) (the agent framework), autograph (the typed-graph memory
-skill), and the ideas from [agent-second-brain](https://github.com/smixs/agent-second-brain).
+[eve](https://eve.dev/docs/introduction) (Vercel's agent framework), autograph (the typed-graph memory skill) and ideas from [agent-second-brain](https://github.com/smixs/agent-second-brain).
 
 ## License
 
-[MIT](LICENSE) — take the code and do what you want with it. Change it, run it on a hundred servers,
-use it in your own projects. One condition: don't blame anyone if something breaks. It's yours now.
+[MIT](LICENSE) — take the code and do what you want with it. Change it, run it on a hundred servers, use it in your own projects. One condition: don't blame anyone if something breaks. It's yours now.
