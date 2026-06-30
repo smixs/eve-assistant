@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Iva — личный AI-агент с долговременной памятью</title>
-<meta name="description" content="Iva — личный AI-агент с долговременной памятью. Живёт в Telegram, ставится одной командой, работает с любого IP (в том числе из России и Беларуси, без VPN). Open-source, на открытых моделях: DeepSeek, Kimi, GLM.">
+<meta name="description" content="Iva — личный AI-агент с долговременной памятью на eve, агентном фреймворке Vercel. Живёт в Telegram, ставится одной командой, около $9 в месяц. Open-source, на открытых моделях: DeepSeek, Kimi, GLM.">
 <meta name="keywords" content="AI агент, персональный AI, личный ассистент, долговременная память, Telegram бот, self-hosted, open source, DeepSeek, Ollama, ИИ агент, второй мозг">
 <meta name="author" content="smixs">
 <meta name="robots" content="index, follow">
@@ -21,7 +21,7 @@
 <meta property="og:locale" content="ru_RU">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:title" content="Iva — личный AI-агент с долговременной памятью">
-<meta property="og:description" content="Личный AI-агент в Telegram. Ставится одной командой, помнит всё, работает с любого IP без VPN. Open-source, на открытых моделях.">
+<meta property="og:description" content="Личный AI-агент с долговременной памятью на eve (фреймворк Vercel). Ставится одной командой, помнит про вас всё, около $9 в месяц. Open-source, на открытых моделях.">
 <meta property="og:url" content="https://smixs.github.io/iva/ru/">
 <meta property="og:image" content="https://smixs.github.io/iva/iva-og.png">
 <meta property="og:image:type" content="image/png">
@@ -32,7 +32,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Iva — личный AI-агент с долговременной памятью">
-<meta name="twitter:description" content="Личный AI-агент в Telegram. Ставится одной командой, помнит всё, работает с любого IP без VPN.">
+<meta name="twitter:description" content="Личный AI-агент с долговременной памятью на eve. Ставится одной командой, помнит про вас всё, около $9 в месяц.">
 <meta name="twitter:image" content="https://smixs.github.io/iva/iva-og.png">
 <meta name="twitter:image:alt" content="Iva — личный AI-агент с долговременной памятью">
 
@@ -42,12 +42,12 @@
   "@type": "SoftwareApplication",
   "name": "Iva",
   "alternateName": "Iva — личный AI-агент",
-  "description": "Личный AI-агент с долговременной памятью. Живёт в Telegram, ставится одной командой, работает с любого IP. Open-source, на открытых моделях.",
+  "description": "Личный AI-агент с долговременной памятью на eve, агентном фреймворке Vercel. Живёт в Telegram, ставится одной командой, около $9 в месяц. Open-source, на открытых моделях.",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Linux, macOS",
   "url": "https://smixs.github.io/iva/ru/",
   "image": "https://smixs.github.io/iva/iva-og.png",
-  "softwareVersion": "0.1.0",
+  "softwareVersion": "0.1.7",
   "license": "https://github.com/smixs/iva/blob/main/LICENSE",
   "codeRepository": "https://github.com/smixs/iva",
   "author": { "@type": "Person", "name": "smixs", "url": "https://github.com/smixs" },
@@ -95,8 +95,8 @@
   <header>
     <img src="../iva-header.webp" alt="Iva — личный AI-агент с долговременной памятью" width="1000" height="394">
     <h1>Iva — личный AI-агент с долговременной памятью</h1>
-    <p class="tagline">Ваш личный AI-агент. Ваш сервер, ваша память - одна команда, и всё работает.</p>
-    <p class="sub">Живёт в Telegram. Ставится одной командой. Работает с любого IP, без VPN.</p>
+    <p class="tagline">Личный AI-агент с долговременной памятью. Ставится одной командой на сервер за $4 и помнит про вас всё.</p>
+    <p class="sub">Живёт в Telegram. Собран на <a href="https://eve.dev/docs/introduction">eve</a>, агентном фреймворке Vercel. Около $9 в месяц.</p>
     <p>
       <a class="cta" href="https://github.com/smixs/iva">Открыть на GitHub</a>
       <a class="cta alt" href="https://github.com/smixs/iva/blob/main/README.ru.md#установка">Как установить</a>
@@ -112,8 +112,7 @@
   выбора - вот настоящая проблема. Поэтому выбор я сделал сам: постоянно тестирую агентов, модели, связки
   и харнесы, оставляю самое лучшее и собираю в Iva - лучшее из всех агентов в одном. Открытый код на
   открытых моделях (DeepSeek, Kimi, GLM), модель выбираете вы по имени, ваш ключ, без наценки. Как Linux
-  Mint среди AI-агентов: одна команда - и всё работает. И главное - работает с любого IP, включая Россию
-  и Беларусь, без VPN. Агентов много, а этот - мой. Теперь и ваш.</p>
+  Mint среди AI-агентов: одна команда - и всё работает. Агентов много, а этот - мой. Теперь и ваш.</p>
 
   <h2>Что умеет</h2>
   <ul class="feat">
@@ -144,16 +143,17 @@
   читаемо и git-diff-аемо - никакой векторной БД, которую надо запускать и оплачивать.</p>
 
   <h2>Провайдеры и цена</h2>
-  <p>Бесплатный и открытый. Платите только за маленький всегда включённый сервер (~$5/мес) и одну
-  подписку на модель - OpenCode Zen Go (~$5/мес) или Ollama Cloud (~$20/мес), оба OpenAI-совместимы, ваш
-  ключ. Голос работает на <a href="https://console.deepgram.com">Deepgram</a> (бесплатный стартовый кредит).</p>
+  <p>Бесплатный и открытый. Платите только за маленький всегда включённый сервер (дроплет за $4 - 1 ядро,
+  512 МБ, 10 ГБ) и одну подписку на модель - OpenCode Zen Go (~$5/мес) или Ollama Cloud (~$20/мес), оба
+  OpenAI-совместимы, ваш ключ. Около $9 в месяц со всем. Голос работает на
+  <a href="https://console.deepgram.com">Deepgram</a> (бесплатный стартовый кредит).</p>
 
   <p style="text-align:center; margin-top:40px">
     <a class="cta" href="https://github.com/smixs/iva">Поставить Iva →</a>
   </p>
 
   <footer>
-    Open-source · MIT · <a href="https://github.com/smixs/iva">github.com/smixs/iva</a><br>
+    Собран на <a href="https://eve.dev/docs/introduction">eve</a> · Open-source · MIT · <a href="https://github.com/smixs/iva">github.com/smixs/iva</a><br>
     Вырос из проекта <a href="https://github.com/smixs/agent-second-brain">agent-second-brain</a>
   </footer>
 </div>
